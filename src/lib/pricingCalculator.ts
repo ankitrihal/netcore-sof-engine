@@ -515,7 +515,7 @@ interface ResolvedTerm {
  */
 export function resolveTerm(input: PricingInput, warnings: string[] = []): ResolvedTerm {
   const mode = input.monthCounting ?? 'exact';
-  const start = input.subscriptionStartDate !== undefined ? toUtcDate(input.subscriptionStartDate) : null;
+  let start = input.subscriptionStartDate !== undefined ? toUtcDate(input.subscriptionStartDate) : null;
 
   // Total duration
   let total = input.totalContractDurationMonths;
@@ -545,6 +545,14 @@ export function resolveTerm(input: PricingInput, warnings: string[] = []): Resol
 
   const paid = total - comp;
 
+  // Billing-first: only a Billing Start Date given → the subscription starts `comp` months
+  // earlier (the complimentary period), or on the billing date when there are none
+  let billingAnchor: Date | null = null;
+  if (!start && input.billingStartDate !== undefined && Number.isInteger(comp)) {
+    billingAnchor = toUtcDate(input.billingStartDate);
+    start = addMonthsUtc(billingAnchor, -comp);
+  }
+
   // Display dates: start + comp months = billing start; start + total months − 1 day = end
   const wholeOrNull = (n: number) => (Number.isInteger(n) ? n : null);
   let billingIso: string | null = null;
@@ -552,7 +560,8 @@ export function resolveTerm(input: PricingInput, warnings: string[] = []): Resol
   if (start) {
     const c = wholeOrNull(comp);
     const t = wholeOrNull(total);
-    if (c !== null) billingIso = iso(addMonthsUtc(start, c));
+    if (billingAnchor) billingIso = iso(billingAnchor); // exactly the date chosen
+    else if (c !== null) billingIso = iso(addMonthsUtc(start, c));
     if (t !== null) endIso = iso(addDays(addMonthsUtc(start, t), -1));
     if (c === null || t === null) warnings.push('Fractional month counts: billing/end dates not computed.');
   }

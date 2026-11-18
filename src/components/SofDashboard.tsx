@@ -211,6 +211,9 @@ export interface FormState extends Omit<ClientDetails, BillingKey> {
   market: Market;
   totalContractDurationMonths: string;
   complimentaryMonths: string;
+  /** Billing Start Date picked on the form; subscription start/end are derived from it. */
+  billingStartDate: string;
+  /** Older saved SOFs only (the form used to ask for this); converted to billingStartDate on load. */
   subscriptionStartDate: string;
   /** Billing Start Date still to be agreed: SOF shows "TBD - To be Discussed" instead of a date. */
   billingStartTbd: boolean;
@@ -243,6 +246,7 @@ export const INITIAL: FormState = {
   market: 'Enterprise',
   totalContractDurationMonths: '12',
   complimentaryMonths: '',
+  billingStartDate: '',
   subscriptionStartDate: '',
   billingStartTbd: false,
   onboardingFee: '', // manual, no default
@@ -266,7 +270,8 @@ export const INITIAL: FormState = {
 export function normalizeFormState(data: unknown): FormState {
   const out: FormState = { ...INITIAL };
   if (!data || typeof data !== 'object') return out;
-  const src = data as Record<string, unknown>;
+  const src = { ...(data as Record<string, unknown>) }; // copy: migrateDates adjusts it
+  migrateDates(out, src);
   for (const key of Object.keys(INITIAL) as (keyof FormState)[]) {
     if (!(key in src)) continue;
     const v = src[key];
@@ -279,18 +284,43 @@ export function normalizeFormState(data: unknown): FormState {
   return out;
 }
 
-/** Billing start date (ISO) from the Term fields, using the calculator's own rule; null if it can't be worked out yet. */
-function billingStartPreview(f: FormState): string | null {
-  if (!f.subscriptionStartDate) return null;
+/**
+ * Subscription dates from the Billing Start Date, using the calculator's own rule:
+ * start = billing − complimentary months, end = start + term − 1 day. null if not set yet.
+ */
+function termDates(f: FormState): { start: string | null; end: string | null } | null {
+  if (!f.billingStartDate || f.billingStartTbd) return null;
   try {
-    return resolveTerm({
-      subscriptionStartDate: f.subscriptionStartDate,
+    const t = resolveTerm({
+      billingStartDate: f.billingStartDate,
       totalContractDurationMonths: num(f.totalContractDurationMonths) ?? MIN_TERM_MONTHS,
       complimentaryMonths: num(f.complimentaryMonths) ?? 0,
-    } as Parameters<typeof resolveTerm>[0]).billingStartDate;
+    } as Parameters<typeof resolveTerm>[0]);
+    return { start: t.subscriptionStartDate, end: t.subscriptionEndDate };
   } catch {
     return null;
   }
+}
+
+/**
+ * SOFs saved before the Billing Start Date picker stored a subscription start date instead.
+ * Turn that into the billing date it implied (start + complimentary months), so they reopen unchanged.
+ */
+function migrateDates(out: FormState, src: Record<string, unknown>) {
+  const oldStart = typeof src.subscriptionStartDate === 'string' ? src.subscriptionStartDate : '';
+  if (!oldStart || (typeof src.billingStartDate === 'string' && src.billingStartDate)) return;
+  try {
+    const comp = Number(src.complimentaryMonths) || 0;
+    const t = resolveTerm({
+      subscriptionStartDate: oldStart,
+      totalContractDurationMonths: Math.max(Number(src.totalContractDurationMonths) || MIN_TERM_MONTHS, comp + 1),
+      complimentaryMonths: comp,
+    } as Parameters<typeof resolveTerm>[0]);
+    if (t.billingStartDate) (src as Record<string, unknown>).billingStartDate = t.billingStartDate;
+  } catch {
+    /* leave the date empty */
+  }
+  (src as Record<string, unknown>).subscriptionStartDate = '';
 }
 
 type Calc = { ok: true; r: PricingResult } | { ok: false; errors: string[] };
@@ -360,7 +390,8 @@ function runCalc(f: FormState): Calc {
       market: f.market,
       totalContractDurationMonths: total!,
       complimentaryMonths: num(f.complimentaryMonths) ?? 0, // blank → 0
-      subscriptionStartDate: f.subscriptionStartDate || undefined,
+      // Dates come from the Billing Start Date (none while it's TBD)
+      billingStartDate: !f.billingStartTbd && f.billingStartDate ? f.billingStartDate : undefined,
       onboardingFee: onboardingFee!,
       onboardingFeeFullyDiscounted: f.onboardingFeeFullyDiscounted,
       csmFee: csmFee!,
@@ -859,7 +890,10 @@ function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: 
             )}
             {meta('Payment Method', 'Local Transfer')}
           </tr>
-          <tr>{meta('Subscription Start Date', term.subscriptionStartDate)}{meta('Subscription End Date', term.subscriptionEndDate)}</tr>
+          <tr>
+            {meta('Subscription Start Date', billingStartTbd ? BILLING_START_TBD_TEXT : term.subscriptionStartDate)}
+            {meta('Subscription End Date', billingStartTbd ? BILLING_START_TBD_TEXT : term.subscriptionEndDate)}
+          </tr>
         </tbody>
       </table>
 
@@ -1251,19 +1285,17 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 placeholder="0"
               />
             </div>
-            <Field label="Subscription start date" type="date" value={f.subscriptionStartDate} onChange={set('subscriptionStartDate')} />
             <div className="sof-billing-start space-y-2">
-              <ReadOnlyField
-                label="Billing start date"
-                value={f.billingStartTbd ? BILLING_START_TBD_TEXT : billingStartPreview(f) ?? ''}
-                hint={
-                  f.billingStartTbd
-                    ? 'The SOF will show "TBD - To be Discussed" instead of a date'
-                    : billingStartPreview(f)
-                      ? 'Subscription start date + complimentary months'
-                      : 'Set the subscription start date to calculate it'
-                }
-              />
+              {f.billingStartTbd ? (
+                <ReadOnlyField
+                  label="Billing start date"
+                  value={BILLING_START_TBD_TEXT}
+                  hint='The SOF shows "TBD - To be Discussed" for the billing and subscription dates'
+                />
+              ) : (
+                <Field label="Billing start date" type="date" value={f.billingStartDate} onChange={set('billingStartDate')}
+                  hint="Subscription dates are worked out from this" />
+              )}
               <label
                 className={cx(
                   'sof-tbd flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium transition',
@@ -1278,6 +1310,19 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 />
                 TBD - To be Discussed
               </label>
+            </div>
+            {/* full width while TBD so "TBD - To be Discussed" isn't cut off */}
+            <div className={cx('grid gap-3', f.billingStartTbd ? 'grid-cols-1' : 'grid-cols-2')}>
+              <ReadOnlyField
+                label="Subscription start"
+                value={f.billingStartTbd ? BILLING_START_TBD_TEXT : termDates(f)?.start ?? ''}
+                hint={f.billingStartTbd ? undefined : num(f.complimentaryMonths) ? 'Billing start − complimentary months' : 'Same as billing start'}
+              />
+              <ReadOnlyField
+                label="Subscription end"
+                value={f.billingStartTbd ? BILLING_START_TBD_TEXT : termDates(f)?.end ?? ''}
+                hint={f.billingStartTbd ? undefined : 'Start + total duration'}
+              />
             </div>
           </Card>
 

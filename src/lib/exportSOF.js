@@ -19,6 +19,7 @@
  *            {BillingStartDate} is "TBD - To be Discussed" when billingStartTbd is set;
  *            {BillingStartDateKnown} is the date, or '' when TBD (for "from <date> …" phrases)
  *            {#billingStartTbd}…{/billingStartTbd} only when the Billing Start Date is TBD
+ *            {StartDate} {EndDate} are also "TBD - To be Discussed" then; {StartDateKnown} {EndDateKnown} are ''
  *            {totalMonths} {complimentaryMonths} {paidMonths}
  *            {paidMonthsText} "Twelve (12)" · {complimentaryPeriodText} "One (1) month"
  *            {contractTermDescription} "(1 Months Complimentary + 12 Months Paid)" or ""
@@ -294,11 +295,15 @@ export function buildSofTemplateData(data) {
     billingPhone: client.billingPhone ?? '',
 
     // Term
-    StartDate: fmtDate(term.subscriptionStartDate),
+    // Subscription dates: "TBD - To be Discussed" while the Billing Start Date is TBD.
+    // The ...Known versions are '' when TBD, for phrases like "Start Date – <end date>".
+    StartDate: billingTbd ? BILLING_START_TBD_TEXT : fmtDate(term.subscriptionStartDate),
+    StartDateKnown: billingTbd ? '' : fmtDate(term.subscriptionStartDate),
     BillingStartDate: billingTbd ? BILLING_START_TBD_TEXT : fmtDate(term.billingStartDate),
     BillingStartDateKnown: billingTbd ? '' : fmtDate(term.billingStartDate),
     billingStartTbd: billingTbd,
-    EndDate: fmtDate(term.subscriptionEndDate),
+    EndDate: billingTbd ? BILLING_START_TBD_TEXT : fmtDate(term.subscriptionEndDate),
+    EndDateKnown: billingTbd ? '' : fmtDate(term.subscriptionEndDate),
     totalMonths: term.totalContractDurationMonths,
     complimentaryMonths: term.complimentaryMonths,
     paidMonths: term.paidMonths,
