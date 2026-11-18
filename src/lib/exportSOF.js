@@ -313,7 +313,7 @@ export function buildSofTemplateData(data) {
     paidMonthsCountText: monthsCountText(term.paidMonths), // "12 (twelve)", Philippines style
     complimentaryPeriodText: `${monthsInWords(term.complimentaryMonths)} ${term.complimentaryMonths === 1 ? 'month' : 'months'}`,
     contractTermDescription: term.contractTermDescription, // '' when no complimentary period
-    paidPeriodLabel: `${term.paidMonths}-month paid period`, // v2: caption under the platform total
+    paidPeriodLabel: `${term.paidMonths}-month paid period`, // no longer used by the templates (caption removed)
 
     // One-time fee
     onboardingFee: money(setup.list),
