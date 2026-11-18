@@ -129,6 +129,22 @@ const hasPhoneDigits = (v: string) => {
   return t.length > 4 && /\d/.test(t.replace(/^\+\d{1,4}\s*/, ''));
 };
 
+/** Standard email format: something@domain.tld, no spaces. */
+export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const isValidEmail = (v: string) => EMAIL_PATTERN.test(v.trim());
+const INVALID_EMAIL_MSG = 'Enter a valid email address, e.g. name@company.com';
+
+/**
+ * Email fields that hold text but aren't a valid address. Billing Email is only checked
+ * when typed separately (while linked it is the Primary Email, already checked).
+ */
+function invalidEmailFields(f: FormState): string[] {
+  const out: string[] = [];
+  if (f.primaryEmail.trim() && !isValidEmail(f.primaryEmail)) out.push(`Primary Email ("${f.primaryEmail.trim()}")`);
+  if (f.billingEmail !== null && f.billingEmail.trim() && !isValidEmail(f.billingEmail)) out.push(`Billing Email ("${f.billingEmail.trim()}")`);
+  return out;
+}
+
 /** The 8 mandatory Client Details fields, checked before any export. */
 const MANDATORY_CLIENT_FIELDS: { key: keyof ClientDetails; label: string; phone?: boolean }[] = [
   { key: 'clientName', label: 'Client Name' },
@@ -354,6 +370,8 @@ const INPUT = 'w-full rounded-md border px-2.5 py-1.5 text-xs placeholder:text-s
 const FOCUS = 'focus:border-blue-500 focus:ring-2 focus:ring-blue-500/60';
 const INPUT_NORMAL = cx('border-slate-300 bg-white text-slate-900 shadow-sm', FOCUS);
 const INPUT_MISSING = cx('sof-missing border-amber-400 bg-amber-50 text-slate-900 shadow-sm', FOCUS);
+const INPUT_ERROR = cx('sof-invalid border-red-400 bg-red-50 text-slate-900 shadow-sm', FOCUS);
+const ERROR_TEXT = 'sof-error mt-1 block text-[11px] font-medium text-red-600';
 const INPUT_INHERITED = cx(
   'sof-inherited border-dashed border-slate-300 bg-slate-100 text-slate-500 shadow-[inset_0_1px_2px_rgba(15,23,42,0.08)]',
   FOCUS,
@@ -435,9 +453,14 @@ function Field(props: {
   /** Minimum for number inputs (default 0). */
   min?: number;
   onBlur?: () => void;
+  /** Validation message; shown after the user leaves the field, or at once when showError is set. */
+  error?: string | null;
+  showError?: boolean;
   children?: React.ReactNode;
 }) {
+  const [touched, setTouched] = useState(false);
   const missing = props.required && (props.isMissing ?? props.value.trim() === '');
+  const errorShown = !!props.error && (touched || !!props.showError);
   return (
     <label className="sof-field block">
       <span className={LABEL}>
@@ -471,14 +494,15 @@ function Field(props: {
             onFocus={props.prefix ? (e) => { const el = e.currentTarget; setTimeout(() => caretAfterPrefix(el, props.prefix!), 0); } : undefined}
             onClick={props.prefix ? (e) => caretAfterPrefix(e.currentTarget, props.prefix!) : undefined}
             required={props.required}
-            onBlur={props.onBlur}
-            aria-invalid={missing || undefined}
-            className={cx('sof-input', INPUT, missing ? INPUT_MISSING : INPUT_NORMAL)}
+            onBlur={() => { setTouched(true); props.onBlur?.(); }}
+            aria-invalid={missing || errorShown || undefined}
+            className={cx('sof-input', INPUT, errorShown ? INPUT_ERROR : missing ? INPUT_MISSING : INPUT_NORMAL)}
             onChange={(e) => props.onChange(e.target.value)}
           />
         )}
         {props.children}
       </span>
+      {errorShown && <span className={ERROR_TEXT} role="alert">{props.error}</span>}
       {props.hint && <span className={cx('sof-hint', HINT)}>{props.hint}</span>}
     </label>
   );
@@ -495,9 +519,14 @@ function BillingField(props: {
   /** If the copied value is only this prefix (e.g. "+62 "), put the cursor after it instead of selecting it. */
   prefix?: string;
   required?: boolean;
+  /** Validation message for a separately typed value (see Field). */
+  error?: string | null;
+  showError?: boolean;
   onChange: (v: string | null) => void;
 }) {
+  const [touched, setTouched] = useState(false);
   const inherited = props.value === null;
+  const errorShown = !inherited && !!props.error && (touched || !!props.showError);
   return (
     <label className="sof-field block">
       <span className={LABEL}>
@@ -515,7 +544,9 @@ function BillingField(props: {
       <input
         type={props.type}
         required={props.required}
-        className={cx('sof-input', INPUT, inherited ? INPUT_INHERITED : INPUT_NORMAL)}
+        className={cx('sof-input', INPUT, inherited ? INPUT_INHERITED : errorShown ? INPUT_ERROR : INPUT_NORMAL)}
+        aria-invalid={errorShown || undefined}
+        onBlur={() => setTouched(true)}
         value={inherited ? props.mirrored : props.value!}
         placeholder={inherited ? `Same as ${props.sourceLabel}` : props.placeholder}
         // While mirroring, select the copied text on focus so typing replaces it,
@@ -529,6 +560,7 @@ function BillingField(props: {
         onClick={(e) => props.prefix && caretAfterPrefix(e.currentTarget, props.prefix)}
         onChange={(e) => props.onChange(e.target.value === '' ? null : e.target.value)}
       />
+      {errorShown && <span className={ERROR_TEXT} role="alert">{props.error}</span>}
       <span className={cx('sof-hint', HINT)}>
         {inherited ? (
           <>Same as {props.sourceLabel}. Type to use a different value.</>
@@ -883,10 +915,15 @@ export interface SofDashboardProps {
 export default function SofDashboard({ onExport, onSave, loadRequest, editing, onNew, headerRight, countryLock }: SofDashboardProps = {}) {
   const [f, setF] = useState<FormState>(() => applyCountryRules(INITIAL, countryLock));
   const [saving, setSaving] = useState(false);
+  /** Set after a blocked Save/Export so every invalid field shows its message. */
+  const [showErrors, setShowErrors] = useState(false);
 
   // Load a saved SOF (or a blank form) when the parent asks
   useEffect(() => {
-    if (loadRequest) setF(applyCountryRules(normalizeFormState(loadRequest.data), countryLock));
+    if (loadRequest) {
+      setF(applyCountryRules(normalizeFormState(loadRequest.data), countryLock));
+      setShowErrors(false);
+    }
   }, [loadRequest?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep a country-team user's form on their country and phone prefix (also covers a lock arriving after mount)
@@ -900,6 +937,12 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
     const name = f.clientName.trim();
     if (!name) {
       alert('Cannot save SOF. Please fill in the Client Name first.');
+      return;
+    }
+    const badEmails = invalidEmailFields(f);
+    if (badEmails.length > 0) {
+      setShowErrors(true);
+      alert(`Cannot save SOF. Please enter a valid email address for:\n- ${badEmails.join('\n- ')}\n\nFormat: name@company.com`);
       return;
     }
     setSaving(true);
@@ -958,8 +1001,14 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
       }),
       ...missingPricingFields(f),
     ];
-    if (missingFields.length > 0) {
-      alert(`Cannot export SOF. Please fill in the following mandatory fields:\n- ${missingFields.join('\n- ')}`);
+    const badEmails = invalidEmailFields(f);
+    if (missingFields.length > 0 || badEmails.length > 0) {
+      setShowErrors(true);
+      const parts = [
+        missingFields.length ? `Please fill in the following mandatory fields:\n- ${missingFields.join('\n- ')}` : '',
+        badEmails.length ? `Please enter a valid email address (name@company.com) for:\n- ${badEmails.join('\n- ')}` : '',
+      ].filter(Boolean);
+      alert(`Cannot export SOF. ${parts.join('\n\n')}`);
       return;
     }
     if (!calc.ok) {
@@ -993,14 +1042,16 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
             <Field label="Primary Contact" type="text" required value={f.primaryContact} onChange={set('primaryContact')}
               placeholder="Full name" autoComplete="name" />
             <Field label="Primary Email" type="email" required value={f.primaryEmail} onChange={set('primaryEmail')}
-              placeholder="name@company.com" autoComplete="email" />
+              placeholder="name@company.com" autoComplete="email"
+              error={f.primaryEmail.trim() && !isValidEmail(f.primaryEmail) ? INVALID_EMAIL_MSG : null} showError={showErrors} />
             <Field label="Primary Phone" type="tel" required isMissing={cleanPhone(f.primaryPhone) === ''} value={f.primaryPhone} onChange={(v) => set('primaryPhone')(dedupePhonePrefix(v))}
               placeholder={`${phonePrefix}8xx xxxx xxxx`} autoComplete="tel" prefix={phonePrefix} />
             <div className="space-y-3.5 border-t border-slate-200 pt-3.5">
               <BillingField label="Billing Contact" type="text" required value={f.billingContact} mirrored={f.primaryContact}
                 sourceLabel="Primary Contact" placeholder="Person who receives invoices" onChange={set('billingContact')} />
               <BillingField label="Billing Email" type="email" required value={f.billingEmail} mirrored={f.primaryEmail}
-                sourceLabel="Primary Email" placeholder="finance@company.com" onChange={set('billingEmail')} />
+                sourceLabel="Primary Email" placeholder="finance@company.com" onChange={set('billingEmail')}
+                error={f.billingEmail !== null && f.billingEmail.trim() && !isValidEmail(f.billingEmail) ? INVALID_EMAIL_MSG : null} showError={showErrors} />
               <BillingField label="Billing Phone" type="tel" required value={f.billingPhone} mirrored={f.primaryPhone}
                 sourceLabel="Primary Phone" placeholder={`${phonePrefix}…`} prefix={phonePrefix} onChange={(v) => set('billingPhone')(v === null ? null : dedupePhonePrefix(v))} />
             </div>
