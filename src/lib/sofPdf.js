@@ -41,6 +41,13 @@ export async function docxToPdf(docxBlob) {
   wrapper.setAttribute('aria-hidden', 'true');
   wrapper.style.cssText = `position:fixed;left:-20000px;top:0;width:${PAGE_W}px;background:#fff;`;
   document.body.appendChild(wrapper);
+  // Tailwind's base styles make every <img> display:block. html2canvas measures where text
+  // sits using a hidden inline <img>, so that rule pushes all captured text a few px down
+  // while borders, rules and strikethroughs stay put (lines appear to cut through the text).
+  // Put images back to inline only while the PDF is being captured.
+  const captureFix = document.createElement('style');
+  captureFix.textContent = 'img { display: inline-block; }';
+  document.head.appendChild(captureFix);
   try {
     await renderAsync(docxBlob, wrapper, undefined, {
       inWrapper: false, // no grey preview background or page shadows
@@ -91,6 +98,7 @@ export async function docxToPdf(docxBlob) {
     return pdf.output('blob');
   } finally {
     wrapper.remove();
+    captureFix.remove();
   }
 }
 
