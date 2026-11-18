@@ -9,7 +9,8 @@
  * Client details are typed in manually on the left and flow into the preview
  * and into onExport.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { ExportFormat } from '../lib/exportSOF';
 import {
   calculatePricing,
   findPxRate,
@@ -65,6 +66,8 @@ export interface SofExportData {
   form?: FormState;
   /** Billing Start Date is To Be Discussed: the SOF shows "TBD - To be Discussed" instead of a date. */
   billingStartTbd?: boolean;
+  /** File(s) to download: Word (default), PDF, or both. */
+  format?: ExportFormat;
   /** Netcore signatory for the signature block: the signed-in user creating the SOF. */
   signatory?: { name: string; title: string } | null;
 }
@@ -625,6 +628,83 @@ function ReadOnlyField({ label, value, hint }: { label: string; value: string; h
   );
 }
 
+const EXPORT_OPTIONS: { format: ExportFormat; label: string; hint: string }[] = [
+  { format: 'docx', label: 'Export as Word (DOCX)', hint: 'Editable Word file' },
+  { format: 'pdf', label: 'Export as PDF', hint: 'Ready to send or sign' },
+  { format: 'both', label: 'Export Both', hint: 'Word file and PDF' },
+];
+
+const DownloadIcon = () => (
+  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4">
+    <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
+    <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
+  </svg>
+);
+
+/** Export split button: the main part exports Word; the arrow opens Word / PDF / Both. */
+function ExportSplitButton({ onExport }: { onExport: (format: ExportFormat) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  const btn =
+    'inline-flex items-center bg-blue-600 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-800';
+  return (
+    <div ref={ref} className="sof-export relative inline-flex shrink-0">
+      <button
+        type="button"
+        title="Download the filled Sales Order Form as a Word file"
+        className={cx('sof-btn gap-2 rounded-l-md py-2 pl-4 pr-3', btn)}
+        onClick={() => onExport('docx')}
+      >
+        <DownloadIcon />
+        Export SOF
+      </button>
+      <button
+        type="button"
+        aria-label="More export options"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cx('sof-export-toggle rounded-r-md border-l border-blue-400/60 px-2 py-2', btn)}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className={cx('h-4 w-4 transition', open && 'rotate-180')}>
+          <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 011.06 0L10 11.94l3.72-3.72a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.22 9.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+        </svg>
+      </button>
+      {open && (
+        <div role="menu" className="sof-export-menu absolute right-0 top-full z-30 mt-1.5 w-56 overflow-hidden rounded-md bg-white py-1 shadow-lg ring-1 ring-slate-900/10">
+          {EXPORT_OPTIONS.map((o) => (
+            <button
+              key={o.format}
+              type="button"
+              role="menuitem"
+              data-format={o.format}
+              className="sof-export-option flex w-full flex-col items-start px-3 py-2 text-left transition hover:bg-slate-50 focus:bg-slate-50 focus:outline-none"
+              onClick={() => {
+                setOpen(false);
+                onExport(o.format);
+              }}
+            >
+              <span className="text-xs font-medium text-slate-800">{o.label}</span>
+              <span className="text-[11px] text-slate-500">{o.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DiscountToggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label
@@ -1008,7 +1088,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
    * Checks all 8 mandatory Client Details fields (phones need digits beyond the "+62 " prefix)
    * plus the required pricing fields, and shows exactly what's missing instead of exporting.
    */
-  const handleExport = () => {
+  const handleExport = (format: ExportFormat = 'docx') => {
     if (!onExport) return;
     const missingFields = [
       ...missingClientFields({
@@ -1038,7 +1118,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
       alert(`Cannot export SOF. ${calc.errors.join(' ')}`);
       return;
     }
-    onExport({ client, pricing: calc.r, country: countryLock ?? countryFromVat(f.vatRate), form: f, billingStartTbd: f.billingStartTbd });
+    onExport({ client, pricing: calc.r, country: countryLock ?? countryFromVat(f.vatRate), form: f, billingStartTbd: f.billingStartTbd, format });
   };
 
   return (
@@ -1266,18 +1346,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 </button>
               )}
               {onExport && (
-                <button
-                  type="button"
-                  title="Download the filled Sales Order Form"
-                  className="sof-btn inline-flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-800"
-                  onClick={handleExport}
-                >
-                  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4">
-                    <path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" />
-                    <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
-                  </svg>
-                  Export SOF
-                </button>
+                <ExportSplitButton onExport={handleExport} />
               )}
               </div>
             </header>

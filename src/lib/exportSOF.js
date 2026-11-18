@@ -394,10 +394,10 @@ export function renderSof(templateBuffer, exportData) {
   });
 }
 
-/** "SOF - PT Lotte Shopping Indonesia - 2026-11-18.docx" */
-export function sofFileName(clientName, country) {
+/** "SOF - ID - PT Lotte Shopping Indonesia - 2026-11-18.docx" (ext: 'docx' or 'pdf') */
+export function sofFileName(clientName, country, ext = 'docx') {
   const safe = (clientName || 'Client').replace(/[\\/:*?"<>|]+/g, '').trim() || 'Client';
-  return `SOF - ${country ? country + ' - ' : ''}${safe} - ${new Date().toISOString().slice(0, 10)}.docx`;
+  return `SOF - ${country ? country + ' - ' : ''}${safe} - ${new Date().toISOString().slice(0, 10)}.${ext}`;
 }
 
 /** Fetch the template, fill it, and download the Word file. */
@@ -415,16 +415,41 @@ async function fetchTemplate(country) {
   throw new Error(`Could not load the ${COUNTRY_ENTITY[country].countryName} template (${urls.join(' or ')}). Is it in the public/ folder?`);
 }
 
-export async function exportSOF(exportData) {
-  const country = resolveCountry(exportData);
-  const blob = renderSof(await fetchTemplate(country), { ...exportData, country });
+/** Export formats offered by the Export menu. */
+export const EXPORT_FORMATS = ['docx', 'pdf', 'both'];
 
+function download(blob, fileName) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = sofFileName(exportData.client.clientName, country);
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Fill the country's template and download it.
+ *   format 'docx' (default) → Word file
+ *   format 'pdf'            → PDF of the same filled Word file (rendered in the browser)
+ *   format 'both'           → Word file and PDF
+ */
+export async function exportSOF(exportData, format = 'docx') {
+  if (!EXPORT_FORMATS.includes(format)) throw new Error(`Unknown export format: ${format}`);
+  const country = resolveCountry(exportData);
+  const docx = renderSof(await fetchTemplate(country), { ...exportData, country });
+  const name = (ext) => sofFileName(exportData.client.clientName, country, ext);
+
+  let pdf = null;
+  if (format !== 'docx') {
+    const { docxToPdf } = await import('./sofPdf.js'); // loaded only when a PDF is requested
+    pdf = await docxToPdf(docx);
+  }
+  if (format !== 'pdf') download(docx, name('docx'));
+  if (pdf) {
+    // Small gap so browsers don't treat the second file as an unwanted multiple download
+    if (format === 'both') await new Promise((r) => setTimeout(r, 400));
+    download(pdf, name('pdf'));
+  }
 }

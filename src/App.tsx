@@ -56,9 +56,10 @@ function Workspace({ user }: { user: AppUser }) {
           console.error('Auto-save before export failed', err);
         }
       }
-      flash({ kind: 'busy', msg: 'Generating Sales Order Form…' });
+      const format = data.format ?? 'docx';
+      flash({ kind: 'busy', msg: format === 'docx' ? 'Generating Sales Order Form…' : format === 'pdf' ? 'Generating PDF…' : 'Generating Word file and PDF…' });
       // Signature block: the signed-in user creating this SOF.
-      await exportSOF({ ...data, signatory: getNetcoreSignatory(user.email) });
+      await exportSOF({ ...data, signatory: getNetcoreSignatory(user.email) }, format);
       if (saveError) flash({ kind: 'error', msg: `Exported, but not saved to SOF History: ${saveError}` }, 8000);
       else flash({ kind: 'ok', msg: data.form ? `Saved "${data.client.clientName}" and exported` : 'Exported' });
     } catch (err) {
