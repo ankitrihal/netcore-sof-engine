@@ -320,7 +320,7 @@ function platformInfo(f: FormState): PlatformInfo {
     });
     return { ok: true, monthly: r.platformFee.ceMonthly, eventsMn: r.eventContainer.totalYearlyMn, band: r.bucket.label };
   } catch {
-    return { ok: false, message: 'Custom pricing (above 5 Mn MAU)' };
+    return { ok: false, message: 'Custom pricing (above 5 Mio MAU)' };
   }
 }
 
@@ -333,7 +333,7 @@ function pxInfo(f: FormState): PxInfo {
   const rate = findPxRate(mau, DEFAULT_PX_VERSION);
   return rate
     ? { ok: true, monthly: rate.usd, eventsMn: rate.eventsMn, tierMau: rate.tierMau }
-    : { ok: false, message: 'Custom pricing (above 50 Mn MAU)' };
+    : { ok: false, message: 'Custom pricing (above 50 Mio MAU)' };
 }
 
 function runCalc(f: FormState): Calc {
@@ -897,8 +897,8 @@ function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: 
           <tr>
             <td className={cx(TD, 'font-medium text-slate-900')}>Event Container Inclusion and Overages</td>
             <td className={TD}>
-              {eventContainer.totalYearlyMn} Mn Events (Included) / year. Overages: {usd(overages.eventPricePerBucket)} per
-              additional {overages.eventBucketMn} Mn events
+              {eventContainer.totalYearlyMn} Mio Events (Included) / year. Overages: {usd(overages.eventPricePerBucket)} per
+              additional {overages.eventBucketMn} Mio events
             </td>
             <td className={TD} />
             <td className={TD} />
@@ -1159,7 +1159,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
             </div>
           </Card>
 
-          <Card title="CE (Customer Engagement)" subtitle="Priced from MAU and plan">
+          <Card title="CE (Customer Engagement)">
             <div className="grid grid-cols-2 gap-3">
               <Field label="MAU" value={f.mau} onChange={set('mau')} required />
               <Select label="Plan" value={f.market} options={['Enterprise', 'Growth'] as Market[]} onChange={set('market')} />
@@ -1170,13 +1170,13 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
               hint={platform.ok ? `${f.market} list price, ${platform.band} MAU band` : undefined}
             />
             <ReadOnlyField
-              label="Event container (Mn / year)"
-              value={platform.ok ? `${platform.eventsMn.toLocaleString('en-US')} Mn events` : platform.message}
+              label="Event container (Mio / year)"
+              value={platform.ok ? `${platform.eventsMn.toLocaleString('en-US')} Mio events` : platform.message}
               hint={platform.ok ? 'Included with this MAU band' : undefined}
             />
           </Card>
 
-          <Card title="PX (Product Experience, Nudges and Contextual Walkthroughs)">
+          <Card title="PX">
             <label
               className={cx(
                 'flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 text-xs font-medium transition',
@@ -1205,20 +1205,20 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 <ReadOnlyField
                   label="PX Price ($ / month)"
                   value={pxPrice.ok ? usd(pxPrice.monthly) : pxPrice.message}
-                  hint={pxPrice.ok ? `${DEFAULT_PX_VERSION}, up to ${(pxPrice.tierMau / 1e6).toLocaleString('en-US')} Mn MAU tier` : undefined}
+                  hint={pxPrice.ok ? `${DEFAULT_PX_VERSION}, up to ${(pxPrice.tierMau / 1e6).toLocaleString('en-US')} Mio MAU tier` : undefined}
                 />
                 <ReadOnlyField
-                  label="Total event container: CE + PX (Mn / year)"
+                  label="Total event container: CE + PX (Mio / year)"
                   value={
                     !pxPrice.ok
                       ? pxPrice.message
                       : platform.ok
-                        ? `${(platform.eventsMn + pxPrice.eventsMn).toLocaleString('en-US')} Mn events`
+                        ? `${(platform.eventsMn + pxPrice.eventsMn).toLocaleString('en-US')} Mio events`
                         : platform.message
                   }
                   hint={
                     pxPrice.ok && platform.ok
-                      ? `${platform.eventsMn.toLocaleString('en-US')} Mn CE base + ${pxPrice.eventsMn.toLocaleString('en-US')} Mn PX (${DEFAULT_PX_VERSION} tier)`
+                      ? `${platform.eventsMn.toLocaleString('en-US')} Mio CE base + ${pxPrice.eventsMn.toLocaleString('en-US')} Mio PX (${DEFAULT_PX_VERSION} tier)`
                       : undefined
                   }
                 />

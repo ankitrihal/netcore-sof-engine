@@ -33,7 +33,7 @@
  * BUNDLED    {#bundled} {name} {details} {monthly} {total} {#discounted}…{/discounted} {#hasPrice}…{/hasPrice}
  *            {detailsMultiline} (one item per line, e.g. each AI feature) {/bundled}
  *            PX row comes first, only when PX is included: "Product Experience, Nudges and
- *            Contextual Walkthroughs" / "500K MAU with 100 Mn per year"
+ *            Contextual Walkthroughs" / "500K MAU with 200 Mio Events / Year"
  * CSM        {csmLabel} {csmFeeMonthly} {csmFeeTotal} · {#csmDiscounted}…{/csmDiscounted} · {^csmDiscounted}…{/csmDiscounted}
  * ADD-ONS    {#addons}…same fields as bundled…{/addons} · {#hasAddons}…{/hasAddons}
  * TOTALS     {totalMonthly} {listTCV} {totalContractValue}
@@ -53,7 +53,7 @@
  * PH LAYOUT  {mauLabel} "100K" · {planName} · {#isEnterprise}…{/isEnterprise}
  *            {platformAllInMonthly} {platformAllInTotal} (platform + bundled products, one row)
  *            {#hasEmail} {emailsLabel} "300K" {emailOverageRate} {/hasEmail}
- *            {pxDetailsText} "500K MAU with 200 Mn events per year" (CE base + PX tier) · {paidMonthsCountText} "12 (twelve)"
+ *            {pxDetailsText} "500K MAU with 200 Mio Events / Year" (CE base + PX tier) · {paidMonthsCountText} "12 (twelve)"
  * Tags the data doesn't have are left blank, never printed as "undefined".
  */
 import PizZip from 'pizzip';
@@ -239,7 +239,7 @@ export function buildSofTemplateData(data) {
         key: 'px',
         name: PX_PRODUCT_NAME,
         details: `${pxDetails(pricing.px)}. ${pxOverageText(pricing.px)}`,
-        detailLines: [pxDetails(pricing.px), pxOverageText(pricing.px)], // "500K MAU with 200 Mn events per year" / "Overages: USD … per MAU, billable monthly"
+        detailLines: [pxDetails(pricing.px), pxOverageText(pricing.px)], // "500K MAU with 200 Mio Events / Year" / "Overages: USD … per MAU, billable monthly"
         detailsMultiline: `${pxDetails(pricing.px)}\n${pxOverageText(pricing.px)}`,
         monthly: money(0),
         total: money(0),
@@ -254,7 +254,7 @@ export function buildSofTemplateData(data) {
   const bundledNetTotal = pricing.bundledProducts.reduce((sum, b) => sum + b.paidTermNet, 0);
   const emailItem = pricing.bundledProducts.find((b) => b.key === 'email');
   const emailCount = emailItem ? Number((emailItem.details.match(/^([\d,]+) emails/) || [])[1]?.replace(/,/g, '')) || 0 : 0;
-  const compact = (n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(2)} Mn` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}K` : String(n));
+  const compact = (n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(2)} Mio` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}K` : String(n));
   const bank = entity.bank;
   const billingTbd = !!data.billingStartTbd;
 

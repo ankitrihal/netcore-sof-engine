@@ -180,11 +180,11 @@ export const PX_RATE_CARD: { tierMau: number; Standard: { usd: number; eventsMn:
 /** Name of the PX row under Bundled Products on the SOF. */
 export const PX_PRODUCT_NAME = 'Product Experience, Nudges and Contextual Walkthroughs';
 
-/** PX row details: the combined PX event pool, e.g. "500K MAU with 200 Mn events per year" (100 Mn CE + 100 Mn PX). */
+/** PX row details: the combined PX event pool, e.g. "500K MAU with 200 Mio Events / Year" (100 Mio CE + 100 Mio PX). */
 export const pxDetails = (px: { mauLabel: string; eventsLabel: string; totalEventsYearlyMn?: number }) =>
   px.totalEventsYearlyMn
-    ? `${px.mauLabel} MAU with ${fmtEvents(px.totalEventsYearlyMn)} events per year` // CE base + PX tier, as on the calculator
-    : `${px.mauLabel} MAU with ${px.eventsLabel} per year`;
+    ? `${px.mauLabel} MAU with ${fmtEvents(px.totalEventsYearlyMn)} Events / Year` // CE base + PX tier, as on the calculator
+    : `${px.mauLabel} MAU with ${px.eventsLabel} Events / Year`;
 
 /** PX overage line, e.g. "Overages: USD 0.003647 per MAU, billable monthly". */
 export const pxOverageText = (px: { overageRatePerMau: number }) =>
@@ -196,7 +196,7 @@ export const pxOverageText = (px: { overageRatePerMau: number }) =>
  */
 export const DEFAULT_PX_VERSION: PxVersion = 'Enterprise';
 
-/** PX price and event container for a MAU and version; null above 50 Mn MAU (custom pricing). */
+/** PX price and event container for a MAU and version; null above 50 Mio MAU (custom pricing). */
 export function findPxRate(mau: number, version: PxVersion = DEFAULT_PX_VERSION) {
   const tier = PX_RATE_CARD.find((t) => mau <= t.tierMau);
   return tier ? { tierMau: tier.tierMau, ...tier[version] } : null;
@@ -387,13 +387,13 @@ export interface PricingResult {
     eventsYearlyMn: number;
     /** "500K" */
     mauLabel: string;
-    /** "100 Mn", "1 Bn" */
+    /** "100 Mio", "1,000 Mio" */
     eventsLabel: string;
     /** USD per MAU above the contracted MAU = (monthly / MAU) × 1.15 */
     overageRatePerMau: number;
-    /** CE base event container (Mn / year) the PX pool builds on; the CE container itself is unchanged */
+    /** CE base event container (Mio / year) the PX pool builds on; the CE container itself is unchanged */
     ceBaseEventsMn: number;
-    /** PX total event container = CE base + PX tier allowance (CW & Nudges sheet), Mn / year */
+    /** PX total event container = CE base + PX tier allowance (CW & Nudges sheet), Mio / year */
     totalEventsYearlyMn: number;
   } | null;
   eventContainer: {
@@ -593,9 +593,9 @@ function tierPick<T>(tiers: T[], ok: (t: T) => boolean): T | undefined {
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const r6 = (n: number) => Math.round((n + Number.EPSILON) * 1e6) / 1e6;
 const fmtInt = (n: number) => n.toLocaleString('en-US');
-const fmtMau = (n: number) => (n >= 1e6 ? `${+(n / 1e6).toFixed(2)} Mn` : `${+(n / 1e3).toFixed(1)}K`);
-/** 100 → "100 Mn", 1000 → "1 Bn" */
-const fmtEvents = (mn: number) => (mn >= 1000 ? `${+(mn / 1000).toFixed(2)} Bn` : `${fmtInt(mn)} Mn`);
+const fmtMau = (n: number) => (n >= 1e6 ? `${+(n / 1e6).toFixed(2)} Mio` : `${+(n / 1e3).toFixed(1)}K`);
+/** 100 → "100 Mio", 1400 → "1,400 Mio" */
+const fmtEvents = (mn: number) => `${fmtInt(mn)} Mio`; // always in millions, e.g. "1,400 Mio"
 
 function asOpts<T extends object>(v: boolean | T | undefined, dflt: boolean): (T & Waivable) | null {
   if (v === undefined) return dflt ? ({} as T) : null;
@@ -747,7 +747,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
     let price = e.monthlyListPrice;
     if (price === undefined) {
       if (!tier) {
-        warnings.push(`Email volume ${fmtInt(e.emailsPerMonth)}/mo exceeds the 10 Mn tier; using the 10 Mn price.`);
+        warnings.push(`Email volume ${fmtInt(e.emailsPerMonth)}/mo exceeds the 10 Mio tier; using the 10 Mio price.`);
       }
       const t = tier ?? EMAIL_TIERS[EMAIL_TIERS.length - 1];
       price = emailUsd(t.inr);
@@ -800,7 +800,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
     else if (v <= 200) inr = S3_EXPORT.upTo200Mn;
     else inr = S3_EXPORT.upTo200Mn + Math.ceil((v - 200) / 100) * S3_EXPORT.perAdditional100Mn;
     addons.push(mk('s3Export', 'Event Export via S3 (once a day)', 'addon',
-      `Up to ${fmtInt(v)} Mn events/month`, ceUsd(inr), a.s3Export.complimentary));
+      `Up to ${fmtInt(v)} Mio events/month`, ceUsd(inr), a.s3Export.complimentary));
   }
   if (a.recommendations) {
     const v = a.recommendations.apiCallsPerMonth;
@@ -821,10 +821,10 @@ export function calculatePricing(input: PricingInput): PricingResult {
   if (a.appInboxCards) {
     const v = a.appInboxCards.pushPerMonth;
     const t = tierPick(APP_INBOX_CARDS, (x) => x.maxPush >= v);
-    if (!t) warnings.push(`App Inbox volume ${fmtInt(v)}/mo exceeds 100 Mn tier; priced at top tier.`);
+    if (!t) warnings.push(`App Inbox volume ${fmtInt(v)}/mo exceeds 100 Mio tier; priced at top tier.`);
     const tt = t ?? APP_INBOX_CARDS[APP_INBOX_CARDS.length - 1];
     addons.push(mk('appInboxCards', 'Cards (App Inbox)', 'addon',
-      `Up to ${fmtInt(tt.maxPush / 1e6)} Mn push notifications/month`, ceUsd(tt.inr), a.appInboxCards.complimentary));
+      `Up to ${fmtInt(tt.maxPush / 1e6)} Mio push notifications/month`, ceUsd(tt.inr), a.appInboxCards.complimentary));
   }
   const cm = asOpts(a.coMarketer, false);
   if (cm) {
@@ -894,7 +894,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
       pxMonthly: r2(pxMonthly),
       monthly: r2(platformMonthly),
       paidTermTotal: r2(platformMonthly * paidMonths),
-      details: `${fmtMau(mau)} MAU or ${+(annualMau / 1e6).toFixed(2)} Mn per year`,
+      details: `${fmtMau(mau)} MAU or ${+(annualMau / 1e6).toFixed(2)} Mio per year`,
     },
     px: px
       ? {
