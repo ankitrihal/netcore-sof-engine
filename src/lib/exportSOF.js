@@ -429,27 +429,45 @@ function download(blob, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Gap between the Word and PDF downloads in "Export Both", so the browser accepts the second file. */
+export const BOTH_DOWNLOAD_GAP_MS = 500;
+
 /**
  * Fill the country's template and download it.
  *   format 'docx' (default) → Word file
  *   format 'pdf'            → PDF of the same filled Word file (rendered in the browser)
- *   format 'both'           → Word file and PDF
+ *   format 'both'           → Word file first, then the PDF at least 500 ms later
+ * Returns the files it downloaded, so the caller can offer them again.
  */
 export async function exportSOF(exportData, format = 'docx') {
   if (!EXPORT_FORMATS.includes(format)) throw new Error(`Unknown export format: ${format}`);
   const country = resolveCountry(exportData);
   const docx = renderSof(await fetchTemplate(country), { ...exportData, country });
   const name = (ext) => sofFileName(exportData.client.clientName, country, ext);
+  const files = [];
 
-  let pdf = null;
+  // Word goes out straight away, while the browser still counts it as part of the click
+  let docxAt = 0;
+  if (format !== 'pdf') {
+    download(docx, name('docx'));
+    docxAt = Date.now();
+    files.push({ name: name('docx'), blob: docx });
+  }
   if (format !== 'docx') {
     const { docxToPdf } = await import('./sofPdf.js'); // loaded only when a PDF is requested
-    pdf = await docxToPdf(docx);
-  }
-  if (format !== 'pdf') download(docx, name('docx'));
-  if (pdf) {
-    // Small gap so browsers don't treat the second file as an unwanted multiple download
-    if (format === 'both') await new Promise((r) => setTimeout(r, 400));
+    const pdf = await docxToPdf(docx);
+    if (format === 'both') {
+      // Stagger: browsers block a second download fired in the same instant as the first
+      const wait = BOTH_DOWNLOAD_GAP_MS - (Date.now() - docxAt);
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    }
     download(pdf, name('pdf'));
+    files.push({ name: name('pdf'), blob: pdf });
   }
+  return files;
+}
+
+/** Download a file again (e.g. from a "Download PDF" button if the browser held it back). */
+export function downloadAgain(file) {
+  download(file.blob, file.name);
 }

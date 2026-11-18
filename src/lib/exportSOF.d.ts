@@ -18,4 +18,7 @@ export declare function renderSof(templateBuffer: ArrayBuffer, data: SofExportDa
 export type ExportFormat = 'docx' | 'pdf' | 'both';
 export declare const EXPORT_FORMATS: ExportFormat[];
 export declare function sofFileName(clientName: string, country?: Country, ext?: 'docx' | 'pdf'): string;
-export declare function exportSOF(data: SofExportData, format?: ExportFormat): Promise<void>;
+export interface ExportedFile { name: string; blob: Blob }
+export declare const BOTH_DOWNLOAD_GAP_MS: number;
+export declare function exportSOF(data: SofExportData, format?: ExportFormat): Promise<ExportedFile[]>;
+export declare function downloadAgain(file: ExportedFile): void;

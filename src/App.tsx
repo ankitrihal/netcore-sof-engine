@@ -10,14 +10,14 @@ import AuthGate, { type AppUser } from './components/AuthGate';
 import SofDashboard, { INITIAL, type FormState, type SofExportData } from './components/SofDashboard';
 import SofHistory from './components/SofHistory';
 import { getNetcoreSignatory } from './lib/access';
-import { exportSOF } from './lib/exportSOF';
+import { downloadAgain, exportSOF } from './lib/exportSOF';
 import { createSof, getSof, updateSof, type SavedSof } from './lib/sofStore';
 
 export default function App() {
   return <AuthGate>{(user) => <Workspace user={user} />}</AuthGate>;
 }
 
-type Toast = { kind: 'busy' | 'ok' | 'error'; msg: string } | null;
+type Toast = { kind: 'busy' | 'ok' | 'error'; msg: string; action?: { label: string; onClick: () => void } } | null;
 
 function Workspace({ user }: { user: AppUser }) {
   const [toast, setToast] = useState<Toast>(null);
@@ -59,9 +59,20 @@ function Workspace({ user }: { user: AppUser }) {
       const format = data.format ?? 'docx';
       flash({ kind: 'busy', msg: format === 'docx' ? 'Generating Sales Order Form…' : format === 'pdf' ? 'Generating PDF…' : 'Generating Word file and PDF…' });
       // Signature block: the signed-in user creating this SOF.
-      await exportSOF({ ...data, signatory: getNetcoreSignatory(user.email) }, format);
-      if (saveError) flash({ kind: 'error', msg: `Exported, but not saved to SOF History: ${saveError}` }, 8000);
-      else flash({ kind: 'ok', msg: data.form ? `Saved "${data.client.clientName}" and exported` : 'Exported' });
+      const files = await exportSOF({ ...data, signatory: getNetcoreSignatory(user.email) }, format);
+      // "Export Both": offer the PDF again in case the browser held back the second download
+      const pdf = format === 'both' ? files.find((f) => f.name.endsWith('.pdf')) : undefined;
+      const action = pdf ? { label: 'Download PDF', onClick: () => downloadAgain(pdf) } : undefined;
+      if (saveError) flash({ kind: 'error', msg: `Exported, but not saved to SOF History: ${saveError}`, action }, 8000);
+      else
+        flash(
+          {
+            kind: 'ok',
+            msg: `${data.form ? `Saved "${data.client.clientName}" and exported` : 'Exported'}${pdf ? ' Word + PDF' : ''}`,
+            action,
+          },
+          pdf ? 10000 : 3000,
+        );
     } catch (err) {
       console.error('SOF export failed', err);
       flash({ kind: 'error', msg: `Export failed: ${err instanceof Error ? err.message : 'unknown error'}` }, 6000);
@@ -155,6 +166,15 @@ function Workspace({ user }: { user: AppUser }) {
           }`}
         >
           {toast.msg}
+          {toast.action && (
+            <button
+              type="button"
+              onClick={toast.action.onClick}
+              className="sof-toast-action rounded border border-current px-2 py-0.5 font-semibold transition hover:bg-white/60"
+            >
+              {toast.action.label}
+            </button>
+          )}
           {toast.kind === 'error' && (
             <button type="button" onClick={() => setToast(null)} className="font-semibold underline-offset-2 hover:underline">
               Dismiss
