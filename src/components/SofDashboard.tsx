@@ -841,11 +841,6 @@ function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: 
   const csm = r.csm;
   const otherAddons = r.addons.filter((a) => a.key !== 'csm');
 
-  // "You Save" label lists only what is actually waived; no complimentary-period text when there is none.
-  const saveParts: string[] = [];
-  if (setup.fullyDiscounted && setup.list > 0) saveParts.push('Onboarding Fee');
-  if (csm.fullyDiscounted && csm.monthlyList > 0) saveParts.push('CSM');
-  r.bundledProducts.filter((b) => b.fullyDiscounted && b.monthlyList > 0).forEach((b) => saveParts.push(b.name));
 
   const meta = (label: string, value: React.ReactNode, extra?: { rowSpan?: number; pre?: boolean }) => (
     <>
@@ -991,7 +986,7 @@ function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: 
           {totals.youSave > 0 && (
             <tr className="sof-save bg-emerald-50 text-emerald-700">
               <td colSpan={2} className="border border-slate-200 px-3 py-2 font-medium">
-                You Save{saveParts.length > 0 && ` (Complimentary ${saveParts.join(' + ')})`}
+                You Save
               </td>
               <td className={cx('border border-slate-200 px-3 py-2', NUM)}>–</td>
               <td className={cx('border border-slate-200 px-3 py-2 font-semibold', NUM)}>{usd(totals.youSave)}</td>
