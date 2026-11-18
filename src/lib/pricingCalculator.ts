@@ -180,9 +180,11 @@ export const PX_RATE_CARD: { tierMau: number; Standard: { usd: number; eventsMn:
 /** Name of the PX row under Bundled Products on the SOF. */
 export const PX_PRODUCT_NAME = 'Product Experience, Nudges and Contextual Walkthroughs';
 
-/** PX row details, e.g. "500K MAU with 100 Mn per year". */
-export const pxDetails = (px: { mauLabel: string; eventsLabel: string }) =>
-  `${px.mauLabel} MAU with ${px.eventsLabel} per year`;
+/** PX row details: the combined PX event pool, e.g. "500K MAU with 200 Mn events per year" (100 Mn CE + 100 Mn PX). */
+export const pxDetails = (px: { mauLabel: string; eventsLabel: string; totalEventsYearlyMn?: number }) =>
+  px.totalEventsYearlyMn
+    ? `${px.mauLabel} MAU with ${fmtEvents(px.totalEventsYearlyMn)} events per year` // CE base + PX tier, as on the calculator
+    : `${px.mauLabel} MAU with ${px.eventsLabel} per year`;
 
 /** PX overage line, e.g. "Overages: USD 0.003647 per MAU, billable monthly". */
 export const pxOverageText = (px: { overageRatePerMau: number }) =>

@@ -53,7 +53,7 @@
  * PH LAYOUT  {mauLabel} "100K" · {planName} · {#isEnterprise}…{/isEnterprise}
  *            {platformAllInMonthly} {platformAllInTotal} (platform + bundled products, one row)
  *            {#hasEmail} {emailsLabel} "300K" {emailOverageRate} {/hasEmail}
- *            {pxDetailsText} "500K MAU with 100 Mn per year" · {paidMonthsCountText} "12 (twelve)"
+ *            {pxDetailsText} "500K MAU with 200 Mn events per year" (CE base + PX tier) · {paidMonthsCountText} "12 (twelve)"
  * Tags the data doesn't have are left blank, never printed as "undefined".
  */
 import PizZip from 'pizzip';
@@ -239,7 +239,7 @@ export function buildSofTemplateData(data) {
         key: 'px',
         name: PX_PRODUCT_NAME,
         details: `${pxDetails(pricing.px)}. ${pxOverageText(pricing.px)}`,
-        detailLines: [pxDetails(pricing.px), pxOverageText(pricing.px)], // "500K MAU with 100 Mn per year" / "Overages: USD … per MAU, billable monthly"
+        detailLines: [pxDetails(pricing.px), pxOverageText(pricing.px)], // "500K MAU with 200 Mn events per year" / "Overages: USD … per MAU, billable monthly"
         detailsMultiline: `${pxDetails(pricing.px)}\n${pxOverageText(pricing.px)}`,
         monthly: money(0),
         total: money(0),
@@ -340,7 +340,7 @@ export function buildSofTemplateData(data) {
     pxVersion: pricing.px ? pricing.px.version : '',
     pxMonthly: pricing.px ? money(pricing.px.monthly) : '',
     pxTotal: pricing.px ? money(pricing.px.paidTermTotal) : '',
-    pxEventsMn: pricing.px ? pricing.px.eventsYearlyMn : '',
+    pxEventsMn: pricing.px ? pricing.px.totalEventsYearlyMn : '', // CE base + PX tier
     pxDetailsText: pricing.px ? pxDetails(pricing.px) : '',
     pxOverageRate: pricing.px ? String(pricing.px.overageRatePerMau) : '',
 
