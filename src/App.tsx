@@ -105,7 +105,7 @@ function Workspace({ user }: { user: AppUser }) {
       <button
         type="button"
         onClick={() => setHistoryOpen(true)}
-        className="sof-history-btn inline-flex items-center gap-2 rounded-md border border-slate-600 px-3 py-1.5 text-sm font-medium text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="sof-history-btn inline-flex items-center gap-2 rounded-md border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clipRule="evenodd" />
@@ -116,12 +116,12 @@ function Workspace({ user }: { user: AppUser }) {
         {user.avatarUrl ? (
           <img src={user.avatarUrl} alt="" className="h-7 w-7 rounded-full" referrerPolicy="no-referrer" />
         ) : (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-xs font-semibold text-white">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-[11px] font-semibold text-white">
             {user.email.charAt(0).toUpperCase()}
           </span>
         )}
         <div className="hidden text-right sm:block">
-          <p className="sof-user-email text-xs font-medium text-white">{user.email}</p>
+          <p className="sof-user-email text-[11px] font-medium text-white">{user.email}</p>
           {user.isAdmin && <p className="sof-admin-badge text-[10px] font-semibold uppercase tracking-wide text-amber-300">Admin · ID + PH</p>}
           {user.countryLock && (
             <p className="sof-team-badge text-[10px] font-semibold uppercase tracking-wide text-sky-300">
@@ -132,7 +132,7 @@ function Workspace({ user }: { user: AppUser }) {
         <button
           type="button"
           onClick={() => void user.signOut()}
-          className="sof-signout ml-1 rounded-md px-2 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+          className="sof-signout ml-1 rounded-md px-2 py-1.5 text-[11px] font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
         >
           Sign out
         </button>
@@ -145,7 +145,7 @@ function Workspace({ user }: { user: AppUser }) {
       {toast && (
         <div
           role="status"
-          className={`sof-toast fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-md px-4 py-2.5 text-sm font-medium shadow-lg ring-1 ${
+          className={`sof-toast fixed left-1/2 top-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-md px-4 py-2.5 text-xs font-medium shadow-lg ring-1 ${
             toast.kind === 'error'
               ? 'bg-red-50 text-red-800 ring-red-200'
               : toast.kind === 'ok'

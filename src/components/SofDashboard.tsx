@@ -350,7 +350,7 @@ function runCalc(f: FormState): Calc {
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
 // Each input gets exactly one state style, so background/border colours never compete.
-const INPUT = 'w-full rounded-md border px-3 py-2 text-sm placeholder:text-slate-400 transition focus:outline-none';
+const INPUT = 'w-full rounded-md border px-2.5 py-1.5 text-xs placeholder:text-slate-400 transition focus:outline-none';
 const FOCUS = 'focus:border-blue-500 focus:ring-2 focus:ring-blue-500/60';
 const INPUT_NORMAL = cx('border-slate-300 bg-white text-slate-900 shadow-sm', FOCUS);
 const INPUT_MISSING = cx('sof-missing border-amber-400 bg-amber-50 text-slate-900 shadow-sm', FOCUS);
@@ -361,8 +361,8 @@ const INPUT_INHERITED = cx(
 const INPUT_READONLY =
   'sof-readonly cursor-not-allowed border-slate-300/70 bg-slate-200/70 pr-9 font-medium text-slate-700 ' +
   'shadow-[inset_0_1px_3px_rgba(15,23,42,0.12)]';
-const LABEL = 'mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-700';
-const HINT = 'mt-1.5 block text-xs text-slate-500';
+const LABEL = 'mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-700';
+const HINT = 'mt-1.5 block text-[11px] text-slate-500';
 
 /** Small tag next to a label, e.g. "Auto" or "Linked". */
 function Tag({ children, tone }: { children: React.ReactNode; tone: 'slate' | 'blue' }) {
@@ -403,11 +403,11 @@ function LinkIcon() {
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <section className="sof-card overflow-hidden rounded-lg bg-white shadow-md ring-1 ring-slate-900/5">
-      <header className="bg-slate-800 px-6 py-3.5">
-        <h2 className="text-sm font-semibold tracking-wide text-white">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-xs text-slate-300">{subtitle}</p>}
+      <header className="bg-slate-800 px-4 py-2.5">
+        <h2 className="text-xs font-semibold tracking-wide text-white">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-[11px] text-slate-300">{subtitle}</p>}
       </header>
-      <div className="space-y-5 p-6">{children}</div>
+      <div className="space-y-3.5 p-4">{children}</div>
     </section>
   );
 }
@@ -576,7 +576,7 @@ function DiscountToggle({ checked, onChange }: { checked: boolean; onChange: (v:
   return (
     <label
       className={cx(
-        'sof-check flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium transition',
+        'sof-check flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs font-medium transition',
         checked
           ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50',
@@ -661,7 +661,7 @@ function LineRow({ li, months }: { li: LineItem; months: number }) {
 function SectionRow({ children }: { children: React.ReactNode }) {
   return (
     <tr>
-      <td colSpan={4} className="border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-700">
+      <td colSpan={4} className="border border-slate-200 bg-slate-100 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-700">
         {children}
       </td>
     </tr>
@@ -692,13 +692,13 @@ function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) 
   );
 
   return (
-    <div className="sof-doc text-sm text-slate-800 [&_del]:text-slate-400">
+    <div className="sof-doc text-xs text-slate-800 [&_del]:text-slate-400">
       <div className="mb-6 flex items-end justify-between border-b border-slate-200 pb-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Netcore</p>
-          <h3 className="mt-1 text-xl font-semibold text-slate-900">Sales Order Form</h3>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-600">Netcore</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-900">Sales Order Form</h3>
         </div>
-        <p className="text-right text-xs text-slate-500">
+        <p className="text-right text-[11px] text-slate-500">
           {term.totalContractDurationMonths} months
           {hasComp && <> · {term.contractTermDescription}</>}
         </p>
@@ -729,10 +729,10 @@ function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) 
         </tbody>
       </table>
 
-      <h4 className="mb-3 mt-8 text-sm font-semibold text-slate-900">Pricing and Payment Terms for the Services</h4>
+      <h4 className="mb-3 mt-8 text-xs font-semibold text-slate-900">Pricing and Payment Terms for the Services</h4>
       <table className="sof-price w-full border-collapse">
         <thead>
-          <tr className="bg-slate-800 text-left text-xs font-semibold uppercase tracking-wide text-white">
+          <tr className="bg-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-white">
             <th className="border border-slate-800 px-3 py-2.5">Component / Product</th>
             <th className="border border-slate-800 px-3 py-2.5">Details</th>
             <th className={cx('border border-slate-800 px-3 py-2.5', NUM)}>Monthly (USD)</th>
@@ -817,7 +817,7 @@ function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) 
                   <del className="font-normal text-red-400">{usd(totals.listTCV)}</del>{' '}
                 </>
               )}
-              <span className="text-base">{usd(totals.totalContractValue)}</span>
+              <span className="text-sm">{usd(totals.totalContractValue)}</span>
             </td>
           </tr>
           {totals.youSave > 0 && (
@@ -851,7 +851,7 @@ function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) 
         )}
       </ul>
       {r.warnings.length > 0 && (
-        <div className="sof-warn mt-5 space-y-1 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="sof-warn mt-5 space-y-1 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
           {r.warnings.map((w) => (
             <div key={w}>⚠ {w}</div>
           ))}
@@ -972,19 +972,19 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
 
   return (
     <div className="sof-app min-h-screen bg-slate-100 font-sans text-slate-900 antialiased">
-      <header className="bg-slate-900 px-6 py-4 shadow-sm">
+      <header className="bg-slate-900 px-5 py-3 shadow-sm">
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white">S</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-600 text-xs font-bold text-white">S</span>
           <div>
-            <h1 className="text-base font-semibold text-white">SOF Engine</h1>
-            <p className="text-xs text-slate-400">Netcore Sales Order Form builder</p>
+            <h1 className="text-sm font-semibold text-white">SOF Engine</h1>
+            <p className="text-[11px] text-slate-400">Netcore Sales Order Form builder</p>
           </div>
           {headerRight && <div className="ml-auto flex items-center gap-3">{headerRight}</div>}
         </div>
       </header>
 
-      <div className="grid gap-6 p-6 lg:grid-cols-[420px_minmax(0,1fr)]">
-        <aside className="sof-form space-y-6">
+      <div className="grid gap-5 p-5 lg:grid-cols-[380px_minmax(0,1fr)]">
+        <aside className="sof-form space-y-4">
           <Card title="Client Details">
             <Field label="Client Name" type="text" required value={f.clientName} onChange={set('clientName')}
               placeholder="e.g. PT Lotte Shopping Indonesia" autoComplete="organization" />
@@ -996,7 +996,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
               placeholder="name@company.com" autoComplete="email" />
             <Field label="Primary Phone" type="tel" required isMissing={cleanPhone(f.primaryPhone) === ''} value={f.primaryPhone} onChange={(v) => set('primaryPhone')(dedupePhonePrefix(v))}
               placeholder={`${phonePrefix}8xx xxxx xxxx`} autoComplete="tel" prefix={phonePrefix} />
-            <div className="space-y-5 border-t border-slate-200 pt-5">
+            <div className="space-y-3.5 border-t border-slate-200 pt-3.5">
               <BillingField label="Billing Contact" type="text" required value={f.billingContact} mirrored={f.primaryContact}
                 sourceLabel="Primary Contact" placeholder="Person who receives invoices" onChange={set('billingContact')} />
               <BillingField label="Billing Email" type="email" required value={f.billingEmail} mirrored={f.primaryEmail}
@@ -1007,7 +1007,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
           </Card>
 
           <Card title="CE (Customer Engagement)" subtitle="Priced from MAU and plan">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <Field label="MAU" value={f.mau} onChange={set('mau')} required />
               <Select label="Plan" value={f.market} options={['Enterprise', 'Growth'] as Market[]} onChange={set('market')} />
             </div>
@@ -1026,7 +1026,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
           <Card title="PX (Product Experience, Nudges and Contextual Walkthroughs)">
             <label
               className={cx(
-                'flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 text-sm font-medium transition',
+                'flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 text-xs font-medium transition',
                 f.includePx ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50',
               )}
             >
@@ -1037,11 +1037,11 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 onChange={(e) => set('includePx')(e.target.checked)}
               />
               Include PX
-              <span className="ml-auto text-xs font-normal text-slate-500">{f.includePx ? 'Added to Platform Fee' : 'Not included'}</span>
+              <span className="ml-auto text-[11px] font-normal text-slate-500">{f.includePx ? 'Added to Platform Fee' : 'Not included'}</span>
             </label>
             {f.includePx && (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <ReadOnlyField label="Version" value={DEFAULT_PX_VERSION} hint="Top tier, applied automatically" />
                   <ReadOnlyField
                     label="MAU"
@@ -1071,7 +1071,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
           </Card>
 
           <Card title="Term">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Total duration (months)"
                 value={f.totalContractDurationMonths}
@@ -1123,11 +1123,11 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
         </aside>
 
         <main className="sof-preview min-w-0">
-          <section className="overflow-hidden rounded-lg bg-white shadow-md ring-1 ring-slate-900/5 lg:sticky lg:top-6">
-            <header className="flex items-center justify-between gap-4 bg-slate-800 px-6 py-3.5">
+          <section className="overflow-hidden rounded-lg bg-white shadow-md ring-1 ring-slate-900/5 lg:sticky lg:top-5">
+            <header className="flex items-center justify-between gap-4 bg-slate-800 px-5 py-2.5">
               <div>
-                <h2 className="text-sm font-semibold tracking-wide text-white">Pricing &amp; SOF Preview</h2>
-                <p className="sof-edit-status mt-0.5 text-xs text-slate-300">
+                <h2 className="text-xs font-semibold tracking-wide text-white">Pricing &amp; SOF Preview</h2>
+                <p className="sof-edit-status mt-0.5 text-[11px] text-slate-300">
                   {editing ? (
                     <>
                       Editing saved SOF: <span className="font-medium text-white">{editing.clientName}</span>
@@ -1145,7 +1145,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
               {editing && onNew && (
                 <button
                   type="button"
-                  className="sof-new-btn rounded-md px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="sof-new-btn rounded-md px-3 py-2 text-xs font-medium text-slate-200 transition hover:bg-slate-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
                   onClick={onNew}
                 >
                   New SOF
@@ -1155,7 +1155,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 <button
                   type="button"
                   title={editing ? 'Save your changes to this SOF' : 'Save this SOF to your history'}
-                  className="sof-save-btn inline-flex items-center gap-2 rounded-md border border-slate-500 bg-slate-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-60"
+                  className="sof-save-btn inline-flex items-center gap-2 rounded-md border border-slate-500 bg-slate-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-60"
                   onClick={handleSave}
                   disabled={saving}
                 >
@@ -1169,7 +1169,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 <button
                   type="button"
                   title="Download the filled Sales Order Form"
-                  className="sof-btn inline-flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-800"
+                  className="sof-btn inline-flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-800"
                   onClick={handleExport}
                 >
                   <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4">
@@ -1181,16 +1181,16 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
               )}
               </div>
             </header>
-            <div className="p-6 lg:max-h-[calc(100vh-8rem)] lg:overflow-auto lg:p-8">
+            <div className="p-5 lg:max-h-[calc(100vh-7rem)] lg:overflow-auto lg:p-6">
               {calc.ok ? (
                 <SofPreview r={calc.r} client={client} />
               ) : (
                 <div className="sof-empty py-6">
-                  <h3 className="text-base font-semibold text-slate-900">Sales Order Form preview</h3>
-                  <p className="mt-1 text-sm text-slate-500">Fill in the remaining fields to see pricing:</p>
+                  <h3 className="text-sm font-semibold text-slate-900">Sales Order Form preview</h3>
+                  <p className="mt-1 text-xs text-slate-500">Fill in the remaining fields to see pricing:</p>
                   <ul className="mt-4 space-y-2">
                     {calc.errors.map((e) => (
-                      <li key={e} className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 ring-1 ring-amber-200">
+                      <li key={e} className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
                         <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                         {e}
                       </li>

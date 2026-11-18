@@ -111,8 +111,8 @@ export default function SofHistory({
       >
         <header className="flex items-center justify-between gap-4 bg-slate-800 px-6 py-4">
           <div>
-            <h2 className="text-sm font-semibold tracking-wide text-white">SOF History</h2>
-            <p className="mt-0.5 text-xs text-slate-300">
+            <h2 className="text-xs font-semibold tracking-wide text-white">SOF History</h2>
+            <p className="mt-0.5 text-[11px] text-slate-300">
               {user.isAdmin ? (scope === 'all' ? 'All SOFs across Netcore (admin view)' : 'SOFs you created') : 'SOFs you created'}
             </p>
           </div>
@@ -134,10 +134,10 @@ export default function SofHistory({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={showOwner ? 'Search client or creator…' : 'Search client…'}
-            className="sof-history-search min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+            className="sof-history-search min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs shadow-sm placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
           />
           {user.isAdmin && (
-            <div className="inline-flex rounded-md border border-slate-300 p-0.5 text-sm" role="group" aria-label="Which SOFs to show">
+            <div className="inline-flex rounded-md border border-slate-300 p-0.5 text-xs" role="group" aria-label="Which SOFs to show">
               {(['all', 'mine'] as const).map((s) => (
                 <button
                   key={s}
@@ -155,7 +155,7 @@ export default function SofHistory({
           <button
             type="button"
             onClick={() => void load()}
-            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            className="rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
           >
             Refresh
           </button>
@@ -163,19 +163,19 @@ export default function SofHistory({
 
         <div className="min-h-0 flex-1 overflow-auto">
           {deleteError && (
-            <p className="sof-delete-error mx-6 mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{deleteError}</p>
+            <p className="sof-delete-error mx-6 mt-4 rounded-md bg-red-50 px-4 py-3 text-xs text-red-700 ring-1 ring-red-200">{deleteError}</p>
           )}
           {error ? (
-            <p className="m-6 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>
+            <p className="m-6 rounded-md bg-red-50 px-4 py-3 text-xs text-red-700 ring-1 ring-red-200">{error}</p>
           ) : loading && rows.length === 0 ? (
-            <p className="p-6 text-sm text-slate-500">Loading…</p>
+            <p className="p-6 text-xs text-slate-500">Loading…</p>
           ) : filtered.length === 0 ? (
-            <p className="p-6 text-sm text-slate-500">
+            <p className="p-6 text-xs text-slate-500">
               {rows.length === 0 ? 'No saved SOFs yet. Use "Save SOF" on the dashboard to save one.' : 'No SOFs match your search.'}
             </p>
           ) : (
-            <table className="sof-history-table w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <table className="sof-history-table w-full text-xs">
+              <thead className="sticky top-0 bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-6 py-2.5">Client</th>
                   <th className="px-3 py-2.5">Country</th>
@@ -200,7 +200,7 @@ export default function SofHistory({
                     </td>
                     <td className="px-3 py-3">
                       <span
-                        className={`sof-country-pill rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                        className={`sof-country-pill rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                           r.country === 'PH' ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-200' : 'bg-orange-50 text-orange-700 ring-1 ring-orange-200'
                         }`}
                         title={r.country === 'PH' ? 'Philippines (12% VAT)' : 'Indonesia (11% VAT)'}
@@ -220,7 +220,7 @@ export default function SofHistory({
                             void handleDelete(r);
                           }}
                           disabled={deletingId !== null}
-                          className="sof-delete-btn rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="sof-delete-btn rounded-md border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400 disabled:cursor-not-allowed disabled:opacity-50"
                           aria-label={`Delete SOF for ${r.client_name}`}
                         >
                           {deletingId === r.id ? 'Deleting…' : 'Delete'}
@@ -233,7 +233,7 @@ export default function SofHistory({
             </table>
           )}
         </div>
-        <footer className="border-t border-slate-200 px-6 py-3 text-xs text-slate-500">
+        <footer className="border-t border-slate-200 px-6 py-3 text-[11px] text-slate-500">
           {filtered.length} of {rows.length} SOF{rows.length === 1 ? '' : 's'}. Click one to open it in the dashboard.
         </footer>
       </aside>
