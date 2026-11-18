@@ -85,3 +85,14 @@ export async function updateSof(id: string, clientName: string, formData: unknow
   if (error) fail('update this SOF', error);
   return withCountry(data);
 }
+
+/**
+ * Permanently delete a SOF. RLS allows admins (any SOF) and owners (their own).
+ * Supabase reports success even when RLS blocks the delete, so the deleted row is
+ * requested back: no row means nothing was deleted.
+ */
+export async function deleteSof(id: string): Promise<void> {
+  const { data, error } = await db().from(TABLE).delete().eq('id', id).select('id');
+  if (error) fail('delete this SOF', error);
+  if (!data || data.length === 0) throw new Error("Couldn't delete this SOF: it doesn't exist or you don't have access to it.");
+}

@@ -4,9 +4,10 @@
  * Standard users see only their own SOFs. Admins see every SOF in the company,
  * with a "Created by" column and a switch to show only their own.
  * Clicking a row loads that SOF into the dashboard.
+ * In the admin "All SOFs" view each row has a Delete button (asks for confirmation first).
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { listSofs, type SavedSofSummary } from '../lib/sofStore';
+import { deleteSof, listSofs, type SavedSofSummary } from '../lib/sofStore';
 import type { AppUser } from './AuthGate';
 
 const fmtDate = (iso: string) =>
@@ -19,6 +20,7 @@ export default function SofHistory({
   onOpenSof,
   activeId,
   refreshKey,
+  onDeleted,
 }: {
   user: AppUser;
   open: boolean;
@@ -27,12 +29,16 @@ export default function SofHistory({
   activeId: string | null;
   /** Change this to reload the list (e.g. after a save). */
   refreshKey: number;
+  /** Called after a SOF is deleted from the admin "All SOFs" view. */
+  onDeleted?: (sof: SavedSofSummary) => void;
 }) {
   const [rows, setRows] = useState<SavedSofSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState<'all' | 'mine'>('all'); // admins only
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,6 +72,27 @@ export default function SofHistory({
   }, [rows, search]);
 
   const showOwner = user.isAdmin && scope === 'all';
+  const canDelete = showOwner; // admin "All SOFs" view only
+
+  const handleDelete = async (r: SavedSofSummary) => {
+    if (deletingId) return;
+    const ok = window.confirm(
+      `Delete the SOF for "${r.client_name}" (created by ${r.user_email})?\n\nThis permanently removes it from SOF History and can't be undone.`,
+    );
+    if (!ok) return;
+    setDeletingId(r.id);
+    setDeleteError(null);
+    try {
+      await deleteSof(r.id);
+      setRows((prev) => prev.filter((x) => x.id !== r.id));
+      onDeleted?.(r);
+      await load();
+    } catch (e) {
+      setDeleteError((e as Error).message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className={open ? 'fixed inset-0 z-40' : 'pointer-events-none fixed inset-0 z-40'} aria-hidden={!open}>
@@ -135,6 +162,9 @@ export default function SofHistory({
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto">
+          {deleteError && (
+            <p className="sof-delete-error mx-6 mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{deleteError}</p>
+          )}
           {error ? (
             <p className="m-6 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-200">{error}</p>
           ) : loading && rows.length === 0 ? (
@@ -152,6 +182,7 @@ export default function SofHistory({
                   {showOwner && <th className="px-3 py-2.5">Created by</th>}
                   <th className="px-3 py-2.5">Last updated</th>
                   <th className="px-6 py-2.5">Created</th>
+                  {canDelete && <th className="px-6 py-2.5"><span className="sr-only">Delete</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -180,6 +211,22 @@ export default function SofHistory({
                     {showOwner && <td className="px-3 py-3 text-slate-600">{r.user_email}</td>}
                     <td className="whitespace-nowrap px-3 py-3 text-slate-600">{fmtDate(r.updated_at)}</td>
                     <td className="whitespace-nowrap px-6 py-3 text-slate-500">{fmtDate(r.created_at)}</td>
+                    {canDelete && (
+                      <td className="px-6 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation(); // don't open the SOF
+                            void handleDelete(r);
+                          }}
+                          disabled={deletingId !== null}
+                          className="sof-delete-btn rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                          aria-label={`Delete SOF for ${r.client_name}`}
+                        >
+                          {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

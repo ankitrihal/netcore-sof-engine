@@ -185,6 +185,15 @@ function Workspace({ user }: { user: AppUser }) {
         onOpenSof={openSof}
         activeId={active?.id ?? null}
         refreshKey={historyRefresh}
+        onDeleted={(sof) => {
+          if (active?.id === sof.id) {
+            // Keep the form on screen as an unsaved SOF so nothing is lost by surprise.
+            setActive(null);
+            flash({ kind: 'ok', msg: `Deleted "${sof.client_name}". It's still in the dashboard as an unsaved SOF.` }, 6000);
+          } else {
+            flash({ kind: 'ok', msg: `Deleted "${sof.client_name}"` });
+          }
+        }}
       />
     </>
   );
