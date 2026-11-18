@@ -39,6 +39,8 @@ export const INR_PER_USD_EMAIL = 70; // NETCORE PRICING conversion
 export const DEFAULT_MAU_OVERAGE_MARKUP = 0.35;
 /** PX overage rate per MAU = (PX monthly price / MAU) × (1 + 15%) */
 export const DEFAULT_PX_OVERAGE_MARKUP = 0.15;
+/** Shown instead of a date when the Billing Start Date is still To Be Discussed. */
+export const BILLING_START_TBD_TEXT = 'TBD - To be Discussed';
 /** Email overage rate = base per-email rate × (1 + 15%) */
 export const DEFAULT_EMAIL_OVERAGE_MARKUP = 0.15;
 /** "Max discount offer" on overage rate = 85% of the offer rate — CE Calculator!C12 */

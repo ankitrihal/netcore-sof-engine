@@ -16,6 +16,8 @@ import {
   pxDetails,
   pxOverageText,
   PX_PRODUCT_NAME,
+  BILLING_START_TBD_TEXT,
+  resolveTerm,
   type Market,
   type PricingResult,
   type LineItem,
@@ -61,6 +63,8 @@ export interface SofExportData {
   country: Country;
   /** Exact form state at export time, saved to SOF History before the download. */
   form?: FormState;
+  /** Billing Start Date is To Be Discussed: the SOF shows "TBD - To be Discussed" instead of a date. */
+  billingStartTbd?: boolean;
   /** Netcore signatory for the signature block: the signed-in user creating the SOF. */
   signatory?: { name: string; title: string } | null;
 }
@@ -205,6 +209,8 @@ export interface FormState extends Omit<ClientDetails, BillingKey> {
   totalContractDurationMonths: string;
   complimentaryMonths: string;
   subscriptionStartDate: string;
+  /** Billing Start Date still to be agreed: SOF shows "TBD - To be Discussed" instead of a date. */
+  billingStartTbd: boolean;
   onboardingFee: string;
   onboardingFeeFullyDiscounted: boolean;
   csmFee: string;
@@ -235,6 +241,7 @@ export const INITIAL: FormState = {
   totalContractDurationMonths: '12',
   complimentaryMonths: '',
   subscriptionStartDate: '',
+  billingStartTbd: false,
   onboardingFee: '', // manual, no default
   onboardingFeeFullyDiscounted: false,
   csmFee: '', // manual, no default
@@ -267,6 +274,20 @@ export function normalizeFormState(data: unknown): FormState {
     }
   }
   return out;
+}
+
+/** Billing start date (ISO) from the Term fields, using the calculator's own rule; null if it can't be worked out yet. */
+function billingStartPreview(f: FormState): string | null {
+  if (!f.subscriptionStartDate) return null;
+  try {
+    return resolveTerm({
+      subscriptionStartDate: f.subscriptionStartDate,
+      totalContractDurationMonths: num(f.totalContractDurationMonths) ?? MIN_TERM_MONTHS,
+      complimentaryMonths: num(f.complimentaryMonths) ?? 0,
+    } as Parameters<typeof resolveTerm>[0]).billingStartDate;
+  } catch {
+    return null;
+  }
 }
 
 type Calc = { ok: true; r: PricingResult } | { ok: false; errors: string[] };
@@ -700,8 +721,9 @@ function SectionRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) {
+function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: ClientDetails; billingStartTbd?: boolean }) {
   const { term, platformFee, overages, eventContainer, totals } = r;
+  const billingStart = billingStartTbd ? BILLING_START_TBD_TEXT : term.billingStartDate;
   const hasComp = term.contractTermDescription !== ''; // '' when complimentaryMonths is 0/blank
   const paid = term.paidMonths;
   const setup = r.oneTimeSetupFees;
@@ -746,7 +768,7 @@ function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) 
           <tr>{meta('Billing Phone', client.billingPhone)}</tr>
           <tr>{meta('Primary Contact', client.primaryContact)}{meta('Billing Method', 'Prepaid')}</tr>
           <tr>{meta('Primary Email', client.primaryEmail)}{meta('Billing Frequency', 'Annual')}</tr>
-          <tr>{meta('Primary Phone', client.primaryPhone)}{meta('Billing Start Date', term.billingStartDate)}</tr>
+          <tr>{meta('Primary Phone', client.primaryPhone)}{meta('Billing Start Date', billingStart)}</tr>
           <tr>
             {meta(
               'Contract Term',
@@ -874,7 +896,7 @@ function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) 
         )}
         <li>
           <b className="text-slate-800">Payment Terms:</b> Annual Billing in Advance
-          {term.billingStartDate ? `, invoiced on the Billing Start Date (${term.billingStartDate})` : ''}.
+          {billingStart ? `, invoiced on the Billing Start Date (${billingStart})` : ''}.
         </li>
         {totals.vat > 0 && (
           <li>
@@ -1016,7 +1038,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
       alert(`Cannot export SOF. ${calc.errors.join(' ')}`);
       return;
     }
-    onExport({ client, pricing: calc.r, country: countryLock ?? countryFromVat(f.vatRate), form: f });
+    onExport({ client, pricing: calc.r, country: countryLock ?? countryFromVat(f.vatRate), form: f, billingStartTbd: f.billingStartTbd });
   };
 
   return (
@@ -1140,6 +1162,33 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
               />
             </div>
             <Field label="Subscription start date" type="date" value={f.subscriptionStartDate} onChange={set('subscriptionStartDate')} />
+            <div className="sof-billing-start space-y-2">
+              <ReadOnlyField
+                label="Billing start date"
+                value={f.billingStartTbd ? BILLING_START_TBD_TEXT : billingStartPreview(f) ?? ''}
+                hint={
+                  f.billingStartTbd
+                    ? 'The SOF will show "TBD - To be Discussed" instead of a date'
+                    : billingStartPreview(f)
+                      ? 'Subscription start date + complimentary months'
+                      : 'Set the subscription start date to calculate it'
+                }
+              />
+              <label
+                className={cx(
+                  'sof-tbd flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs font-medium transition',
+                  f.billingStartTbd ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50',
+                )}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 accent-amber-600"
+                  checked={f.billingStartTbd}
+                  onChange={(e) => set('billingStartTbd')(e.target.checked)}
+                />
+                TBD - To be Discussed
+              </label>
+            </div>
           </Card>
 
           <Card title="Fees">
@@ -1234,7 +1283,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
             </header>
             <div className="p-5 lg:max-h-[calc(100vh-7rem)] lg:overflow-auto lg:p-6">
               {calc.ok ? (
-                <SofPreview r={calc.r} client={client} />
+                <SofPreview r={calc.r} client={client} billingStartTbd={f.billingStartTbd} />
               ) : (
                 <div className="sof-empty py-6">
                   <h3 className="text-sm font-semibold text-slate-900">Sales Order Form preview</h3>

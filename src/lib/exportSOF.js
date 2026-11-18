@@ -16,6 +16,9 @@
  * CLIENT     {clientName} {billingAddress} {primaryContact} {primaryEmail} {primaryPhone}
  *            {billingContact} {billingEmail} {billingPhone}
  * TERM       {StartDate} {BillingStartDate} {EndDate} {ComplimentaryEndDate}   e.g. "1 January 2027"
+ *            {BillingStartDate} is "TBD - To be Discussed" when billingStartTbd is set;
+ *            {BillingStartDateKnown} is the date, or '' when TBD (for "from <date> …" phrases)
+ *            {#billingStartTbd}…{/billingStartTbd} only when the Billing Start Date is TBD
  *            {totalMonths} {complimentaryMonths} {paidMonths}
  *            {paidMonthsText} "Twelve (12)" · {complimentaryPeriodText} "One (1) month"
  *            {contractTermDescription} "(1 Months Complimentary + 12 Months Paid)" or ""
@@ -55,7 +58,7 @@
  */
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
-import { PX_PRODUCT_NAME, pxDetails, pxOverageText } from './pricingCalculator';
+import { PX_PRODUCT_NAME, pxDetails, pxOverageText, BILLING_START_TBD_TEXT } from './pricingCalculator';
 
 /**
  * Word templates, served from the public/ folder, one per country.
@@ -253,6 +256,7 @@ export function buildSofTemplateData(data) {
   const emailCount = emailItem ? Number((emailItem.details.match(/^([\d,]+) emails/) || [])[1]?.replace(/,/g, '')) || 0 : 0;
   const compact = (n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(2)} Mn` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}K` : String(n));
   const bank = entity.bank;
+  const billingTbd = !!data.billingStartTbd;
 
   return {
     // Netcore signature block: whoever is signed in and exporting
@@ -291,13 +295,15 @@ export function buildSofTemplateData(data) {
 
     // Term
     StartDate: fmtDate(term.subscriptionStartDate),
-    BillingStartDate: fmtDate(term.billingStartDate),
+    BillingStartDate: billingTbd ? BILLING_START_TBD_TEXT : fmtDate(term.billingStartDate),
+    BillingStartDateKnown: billingTbd ? '' : fmtDate(term.billingStartDate),
+    billingStartTbd: billingTbd,
     EndDate: fmtDate(term.subscriptionEndDate),
     totalMonths: term.totalContractDurationMonths,
     complimentaryMonths: term.complimentaryMonths,
     paidMonths: term.paidMonths,
     hasComplimentary,
-    ComplimentaryEndDate: term.complimentaryMonths > 0 ? fmtDate(dayBefore(term.billingStartDate)) : '',
+    ComplimentaryEndDate: term.complimentaryMonths > 0 && !billingTbd ? fmtDate(dayBefore(term.billingStartDate)) : '',
     paidMonthsText: monthsInWords(term.paidMonths),
     paidMonthsCountText: monthsCountText(term.paidMonths), // "12 (twelve)", Philippines style
     complimentaryPeriodText: `${monthsInWords(term.complimentaryMonths)} ${term.complimentaryMonths === 1 ? 'month' : 'months'}`,
