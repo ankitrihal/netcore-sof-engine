@@ -1208,9 +1208,19 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                   hint={pxPrice.ok ? `${DEFAULT_PX_VERSION}, up to ${(pxPrice.tierMau / 1e6).toLocaleString('en-US')} Mn MAU tier` : undefined}
                 />
                 <ReadOnlyField
-                  label="Event container (Mn / year)"
-                  value={pxPrice.ok ? `${pxPrice.eventsMn.toLocaleString('en-US')} Mn events` : pxPrice.message}
-                  hint={pxPrice.ok ? 'Included with this PX tier' : undefined}
+                  label="Total event container: CE + PX (Mn / year)"
+                  value={
+                    !pxPrice.ok
+                      ? pxPrice.message
+                      : platform.ok
+                        ? `${(platform.eventsMn + pxPrice.eventsMn).toLocaleString('en-US')} Mn events`
+                        : platform.message
+                  }
+                  hint={
+                    pxPrice.ok && platform.ok
+                      ? `${platform.eventsMn.toLocaleString('en-US')} Mn CE base + ${pxPrice.eventsMn.toLocaleString('en-US')} Mn PX (${DEFAULT_PX_VERSION} tier)`
+                      : undefined
+                  }
                 />
                 {platform.ok && pxPrice.ok && (
                   <ReadOnlyField

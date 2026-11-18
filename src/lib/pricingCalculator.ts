@@ -389,6 +389,10 @@ export interface PricingResult {
     eventsLabel: string;
     /** USD per MAU above the contracted MAU = (monthly / MAU) × 1.15 */
     overageRatePerMau: number;
+    /** CE base event container (Mn / year) the PX pool builds on; the CE container itself is unchanged */
+    ceBaseEventsMn: number;
+    /** PX total event container = CE base + PX tier allowance (CW & Nudges sheet), Mn / year */
+    totalEventsYearlyMn: number;
   } | null;
   eventContainer: {
     includedYearlyMn: number;
@@ -673,6 +677,8 @@ export function calculatePricing(input: PricingInput): PricingResult {
       mauLabel: fmtMau(mau),
       eventsLabel: fmtEvents(rate.eventsMn),
       overageRatePerMau: r6((rate.usd / mau) * (1 + (input.pxOverageMarkup ?? DEFAULT_PX_OVERAGE_MARKUP))),
+      ceBaseEventsMn: 0, // set in the result, once the CE container is known
+      totalEventsYearlyMn: 0,
     };
   }
   const pxMonthly = px ? px.monthly : 0;
@@ -888,7 +894,14 @@ export function calculatePricing(input: PricingInput): PricingResult {
       paidTermTotal: r2(platformMonthly * paidMonths),
       details: `${fmtMau(mau)} MAU or ${+(annualMau / 1e6).toFixed(2)} Mn per year`,
     },
-    px: px ? { ...px, paidTermTotal: r2(px.monthly * paidMonths) } : null,
+    px: px
+      ? {
+          ...px,
+          paidTermTotal: r2(px.monthly * paidMonths),
+          ceBaseEventsMn: includedMn,
+          totalEventsYearlyMn: includedMn + px.eventsYearlyMn,
+        }
+      : null,
     eventContainer: {
       includedYearlyMn: includedMn,
       upgradeMn,
