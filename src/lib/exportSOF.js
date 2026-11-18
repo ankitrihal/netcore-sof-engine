@@ -26,6 +26,7 @@
  * PLATFORM   {platformFeeDetails} {platformFeeMonthly} {platformFeeTotal} {ceMonthly} {mauOverageRate}
  *            {eventContainerMn} {eventOveragePerBucket} {eventOverageBucketMn}
  * PX         {#hasPx}…{/hasPx} {pxVersion} {pxMonthly} {pxTotal} {pxEventsMn}
+ *            {pxOverageRate} "0.003647" = (PX price / MAU) × 1.15, USD per MAU
  * BUNDLED    {#bundled} {name} {details} {monthly} {total} {#discounted}…{/discounted} {#hasPrice}…{/hasPrice}
  *            {detailsMultiline} (one item per line, e.g. each AI feature) {/bundled}
  *            PX row comes first, only when PX is included: "Product Experience, Nudges and
@@ -45,6 +46,7 @@
  *            {#hasBankDetails} {bankBeneficiary} {bankName} {bankBranch} {bankBranchAddress}
  *            {bankAccountNo} {bankCode} {bankSwift} {/hasBankDetails}
  *            Dates are "1 January 2027" for Indonesia and "01 Jan 2027" for the Philippines.
+ * SIGNATORY  {netcoreSignatoryName} {netcoreSignatoryTitle}: the signed-in user (blank if unknown)
  * PH LAYOUT  {mauLabel} "100K" · {planName} · {#isEnterprise}…{/isEnterprise}
  *            {platformAllInMonthly} {platformAllInTotal} (platform + bundled products, one row)
  *            {#hasEmail} {emailsLabel} "300K" {emailOverageRate} {/hasEmail}
@@ -53,7 +55,7 @@
  */
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
-import { PX_PRODUCT_NAME, pxDetails } from './pricingCalculator';
+import { PX_PRODUCT_NAME, pxDetails, pxOverageText } from './pricingCalculator';
 
 /**
  * Word templates, served from the public/ folder, one per country.
@@ -233,9 +235,9 @@ export function buildSofTemplateData(data) {
     ? [{
         key: 'px',
         name: PX_PRODUCT_NAME,
-        details: pxDetails(pricing.px), // "500K MAU with 100 Mn per year"
-        detailLines: [pxDetails(pricing.px)],
-        detailsMultiline: pxDetails(pricing.px),
+        details: `${pxDetails(pricing.px)}. ${pxOverageText(pricing.px)}`,
+        detailLines: [pxDetails(pricing.px), pxOverageText(pricing.px)], // "500K MAU with 100 Mn per year" / "Overages: USD … per MAU, billable monthly"
+        detailsMultiline: `${pxDetails(pricing.px)}\n${pxOverageText(pricing.px)}`,
         monthly: money(0),
         total: money(0),
         discounted: false,
@@ -253,6 +255,9 @@ export function buildSofTemplateData(data) {
   const bank = entity.bank;
 
   return {
+    // Netcore signature block: whoever is signed in and exporting
+    netcoreSignatoryName: data.signatory?.name ?? '',
+    netcoreSignatoryTitle: data.signatory?.title ?? '',
     // Country & contracting entity
     country,
     countryName: entity.countryName,
@@ -331,6 +336,7 @@ export function buildSofTemplateData(data) {
     pxTotal: pricing.px ? money(pricing.px.paidTermTotal) : '',
     pxEventsMn: pricing.px ? pricing.px.eventsYearlyMn : '',
     pxDetailsText: pricing.px ? pxDetails(pricing.px) : '',
+    pxOverageRate: pricing.px ? String(pricing.px.overageRatePerMau) : '',
 
     // Email (for layouts that show it inside the Platform row)
     hasEmail: !!emailItem,

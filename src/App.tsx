@@ -5,10 +5,11 @@
  *   SofDashboard    → pricing form, live SOF preview, Save / Update / Export
  *   SofHistory      → saved SOFs (own for users, everyone's for admins); click to open
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import AuthGate, { type AppUser } from './components/AuthGate';
 import SofDashboard, { INITIAL, type FormState, type SofExportData } from './components/SofDashboard';
 import SofHistory from './components/SofHistory';
+import { getNetcoreSignatory } from './lib/access';
 import { exportSOF } from './lib/exportSOF';
 import { createSof, getSof, updateSof, type SavedSof } from './lib/sofStore';
 
@@ -30,25 +31,48 @@ function Workspace({ user }: { user: AppUser }) {
     if (t && t.kind !== 'busy') window.setTimeout(() => setToast((cur) => (cur === t ? null : cur)), ms);
   };
 
-  // ---- Export (unchanged behaviour) ----
+  /** Save the open SOF (update) or a new one (insert); returns the saved record. */
+  const persist = async (form: FormState, clientName: string) => {
+    const saved = active ? await updateSof(active.id, clientName, form) : await createSof(clientName, form);
+    setActive(saved);
+    setHistoryRefresh((n) => n + 1);
+    return saved;
+  };
+
+  // ---- Export: save to SOF History first (automatic), then download ----
+  const exportingRef = useRef(false);
   const handleExport = async (data: SofExportData) => {
-    if (toast?.kind === 'busy') return;
-    flash({ kind: 'busy', msg: 'Generating Sales Order Form…' });
+    if (exportingRef.current) return; // ignore double-clicks
+    exportingRef.current = true;
+    let saveError: string | null = null;
     try {
-      await exportSOF(data);
-      flash(null);
+      if (data.form) {
+        flash({ kind: 'busy', msg: 'Saving to SOF History…' });
+        try {
+          await persist(data.form, data.client.clientName);
+        } catch (err) {
+          // Never lose the export because the save failed; say so after the download
+          saveError = err instanceof Error ? err.message : 'unknown error';
+          console.error('Auto-save before export failed', err);
+        }
+      }
+      flash({ kind: 'busy', msg: 'Generating Sales Order Form…' });
+      // Signature block: the signed-in user creating this SOF.
+      await exportSOF({ ...data, signatory: getNetcoreSignatory(user.email) });
+      if (saveError) flash({ kind: 'error', msg: `Exported, but not saved to SOF History: ${saveError}` }, 8000);
+      else flash({ kind: 'ok', msg: data.form ? `Saved "${data.client.clientName}" and exported` : 'Exported' });
     } catch (err) {
       console.error('SOF export failed', err);
       flash({ kind: 'error', msg: `Export failed: ${err instanceof Error ? err.message : 'unknown error'}` }, 6000);
+    } finally {
+      exportingRef.current = false;
     }
   };
 
   // ---- Save new / update open SOF ----
   const handleSave = async (form: FormState, clientName: string) => {
     try {
-      const saved = active ? await updateSof(active.id, clientName, form) : await createSof(clientName, form);
-      setActive(saved);
-      setHistoryRefresh((n) => n + 1);
+      const saved = await persist(form, clientName);
       flash({ kind: 'ok', msg: active ? `Updated "${saved.client_name}"` : `Saved "${saved.client_name}" to SOF History` });
     } catch (err) {
       flash({ kind: 'error', msg: err instanceof Error ? err.message : 'Save failed' }, 6000);

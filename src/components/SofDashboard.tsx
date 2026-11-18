@@ -14,11 +14,13 @@ import {
   calculatePricing,
   findPxRate,
   pxDetails,
+  pxOverageText,
   PX_PRODUCT_NAME,
   type Market,
   type PricingResult,
   type LineItem,
   type PxVersion,
+  DEFAULT_PX_VERSION,
 } from '../lib/pricingCalculator';
 import { COUNTRY_NAME, COUNTRY_VAT, countryFromVat, type Country } from '../lib/access';
 
@@ -57,6 +59,10 @@ export interface SofExportData {
   pricing: PricingResult;
   /** Picks the Word template and entity details: ID = Indonesia, PH = Philippines. */
   country: Country;
+  /** Exact form state at export time, saved to SOF History before the download. */
+  form?: FormState;
+  /** Netcore signatory for the signature block: the signed-in user creating the SOF. */
+  signatory?: { name: string; title: string } | null;
 }
 
 /** Phone country code per SOF country. Fully editable in the field. */
@@ -223,7 +229,7 @@ export const INITIAL: FormState = {
   emailRate: DEFAULT_EMAIL_RATE,
   vatRate: '11',
   includePx: false,
-  pxVersion: 'Standard',
+  pxVersion: DEFAULT_PX_VERSION, // kept for older saved SOFs; PX always uses DEFAULT_PX_VERSION
 };
 
 /**
@@ -284,7 +290,7 @@ type PxInfo = { ok: true; monthly: number; eventsMn: number; tierMau: number } |
 function pxInfo(f: FormState): PxInfo {
   const mau = num(f.mau);
   if (!mau || mau <= 0) return { ok: false, message: 'Enter MAU in the CE section' };
-  const rate = findPxRate(mau, f.pxVersion);
+  const rate = findPxRate(mau, DEFAULT_PX_VERSION);
   return rate
     ? { ok: true, monthly: rate.usd, eventsMn: rate.eventsMn, tierMau: rate.tierMau }
     : { ok: false, message: 'Custom pricing (above 50 Mn MAU)' };
@@ -320,13 +326,13 @@ function runCalc(f: FormState): Calc {
       csmFee: csmFee!,
       csmFeeFullyDiscounted: f.csmFeeFullyDiscounted,
       csmResourceType: CSM_RESOURCE_TYPE, // always Shared; no longer chosen in the UI
-      px: f.includePx ? { version: f.pxVersion } : undefined, // unchecked → no PX anywhere
+      px: f.includePx ? { version: DEFAULT_PX_VERSION } : undefined, // unchecked → no PX; checked → Enterprise automatically
       bundled: {
         aiComponents: { monthlyListPrice: num(f.aiMonthly) ?? 0, complimentary: f.aiFullyDiscounted },
-        // Per-email rate overrides the standard tier: monthly price = emails × rate,
-        // and the same rate is quoted as the overage per extra email.
+        // Per-email rate overrides the standard tier: monthly price = emails × rate.
+        // Overage per extra email = that rate + 15% (applied in calculatePricing).
         email: emails
-          ? { emailsPerMonth: emails, monthlyListPrice: emails * emailRate!, overagePerEmail: emailRate! }
+          ? { emailsPerMonth: emails, monthlyListPrice: emails * emailRate! }
           : undefined,
       },
       vatRate: (num(f.vatRate) ?? 0) / 100 || undefined,
@@ -768,7 +774,7 @@ function SofPreview({ r, client }: { r: PricingResult; client: ClientDetails }) 
           {r.px && (
             <tr>
               <td className={cx(TD, 'font-medium text-slate-900')}>{PX_PRODUCT_NAME}</td>
-              <td className={TD}>{pxDetails(r.px)}</td>
+              <td className={TD}>{pxDetails(r.px)}<br />{pxOverageText(r.px)}</td>
               <td className={TD} />
               <td className={TD} />
             </tr>
@@ -906,7 +912,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
   const set = <K extends keyof FormState>(k: K) => (v: FormState[K]) => setF((s) => ({ ...s, [k]: v }));
   const calc = useMemo(() => runCalc(f), [f]);
   const platform = useMemo(() => platformInfo(f), [f.mau, f.market]);
-  const pxPrice = useMemo(() => pxInfo(f), [f.mau, f.pxVersion]);
+  const pxPrice = useMemo(() => pxInfo(f), [f.mau]);
   const mauNum = num(f.mau);
   const phonePrefix = PHONE_PREFIXES[countryLock ?? countryFromVat(f.vatRate)];
 
@@ -961,7 +967,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
       alert(`Cannot export SOF. ${calc.errors.join(' ')}`);
       return;
     }
-    onExport({ client, pricing: calc.r, country: countryLock ?? countryFromVat(f.vatRate) });
+    onExport({ client, pricing: calc.r, country: countryLock ?? countryFromVat(f.vatRate), form: f });
   };
 
   return (
@@ -1036,7 +1042,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
             {f.includePx && (
               <>
                 <div className="grid grid-cols-2 gap-4">
-                  <Select label="Version" value={f.pxVersion} options={['Standard', 'Enterprise'] as PxVersion[]} onChange={set('pxVersion')} />
+                  <ReadOnlyField label="Version" value={DEFAULT_PX_VERSION} hint="Top tier, applied automatically" />
                   <ReadOnlyField
                     label="MAU"
                     value={mauNum ? mauNum.toLocaleString('en-US') : 'Enter MAU in the CE section'}
@@ -1046,7 +1052,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
                 <ReadOnlyField
                   label="PX Price ($ / month)"
                   value={pxPrice.ok ? usd(pxPrice.monthly) : pxPrice.message}
-                  hint={pxPrice.ok ? `${f.pxVersion}, up to ${(pxPrice.tierMau / 1e6).toLocaleString('en-US')} Mn MAU tier` : undefined}
+                  hint={pxPrice.ok ? `${DEFAULT_PX_VERSION}, up to ${(pxPrice.tierMau / 1e6).toLocaleString('en-US')} Mn MAU tier` : undefined}
                 />
                 <ReadOnlyField
                   label="Event container (Mn / year)"
@@ -1100,7 +1106,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
             </Field>
             <Field label="Emails per month" value={f.emailsPerMonth} onChange={set('emailsPerMonth')} placeholder="Blank = none" />
             <Field label="Pricing per email ($)" value={f.emailRate} onChange={set('emailRate')} placeholder={DEFAULT_EMAIL_RATE}
-              hint="Monthly email price = emails × this rate; also the overage rate" />
+              hint="Monthly email price = emails × this rate; overage = this rate + 15%" />
             <Select
               label="Country / VAT"
               value={f.vatRate}

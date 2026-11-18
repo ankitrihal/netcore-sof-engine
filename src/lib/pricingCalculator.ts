@@ -37,6 +37,10 @@ export const INR_PER_USD_EMAIL = 70; // NETCORE PRICING conversion
 
 /** Overage offer rate = (offer price / MAU) × (1 + 35%) — CE Calculator!B12 */
 export const DEFAULT_MAU_OVERAGE_MARKUP = 0.35;
+/** PX overage rate per MAU = (PX monthly price / MAU) × (1 + 15%) */
+export const DEFAULT_PX_OVERAGE_MARKUP = 0.15;
+/** Email overage rate = base per-email rate × (1 + 15%) */
+export const DEFAULT_EMAIL_OVERAGE_MARKUP = 0.15;
 /** "Max discount offer" on overage rate = 85% of the offer rate — CE Calculator!C12 */
 export const MAX_OVERAGE_DISCOUNT_FLOOR = 0.85;
 /** Manager discount caps as share of (listed − lowest accepted) — Calculation!B6:B7 */
@@ -178,8 +182,18 @@ export const PX_PRODUCT_NAME = 'Product Experience, Nudges and Contextual Walkth
 export const pxDetails = (px: { mauLabel: string; eventsLabel: string }) =>
   `${px.mauLabel} MAU with ${px.eventsLabel} per year`;
 
+/** PX overage line, e.g. "Overages: USD 0.003647 per MAU, billable monthly". */
+export const pxOverageText = (px: { overageRatePerMau: number }) =>
+  `Overages: USD ${px.overageRatePerMau} per MAU, billable monthly`;
+
+/**
+ * PX version applied automatically when PX is included (there is no version picker):
+ * the top tier, Enterprise. Change here to apply a different version everywhere.
+ */
+export const DEFAULT_PX_VERSION: PxVersion = 'Enterprise';
+
 /** PX price and event container for a MAU and version; null above 50 Mn MAU (custom pricing). */
-export function findPxRate(mau: number, version: PxVersion) {
+export function findPxRate(mau: number, version: PxVersion = DEFAULT_PX_VERSION) {
   const tier = PX_RATE_CARD.find((t) => mau <= t.tierMau);
   return tier ? { tierMau: tier.tierMau, ...tier[version] } : null;
 }
@@ -268,12 +282,13 @@ export interface PricingInput {
    * PX module. Omit (or leave undefined) to exclude PX entirely.
    * When included, Platform Fee = CE price + PX price, and PX uses the same MAU as CE.
    */
-  px?: { version: PxVersion };
+  px?: { version?: PxVersion }; // version defaults to DEFAULT_PX_VERSION (Enterprise)
 
   bundled?: {
     /** AI Components (Standard). Default included at $1,000/mo list, complimentary. Pass false to omit. */
     aiComponents?: boolean | ({ monthlyListPrice?: number } & Waivable);
     /** Promotional email bundle priced from NETCORE PRICING tiers unless monthlyListPrice given. */
+    /** overagePerEmail is a final-rate override; otherwise overage = base per-email rate × (1 + emailOverageMarkup). */
     email?: { emailsPerMonth: number; monthlyListPrice?: number; overagePerEmail?: number } & Waivable;
     custom?: BundledProductInput[];
   };
@@ -302,6 +317,10 @@ export interface PricingInput {
   mauOverageMarkup?: number;
   /** Override MAU overage rate per user directly. */
   mauOverageRate?: number;
+  /** PX overage premium over (PX price / MAU). Default 0.15 (15%). */
+  pxOverageMarkup?: number;
+  /** Email overage premium over the base per-email rate. Default 0.15 (15%). */
+  emailOverageMarkup?: number;
 
   /** Include complimentary-period value in "You Save". Default false (matches Flin SOF figure). */
   includeComplimentaryPeriodInSavings?: boolean;
@@ -363,6 +382,8 @@ export interface PricingResult {
     mauLabel: string;
     /** "100 Mn", "1 Bn" */
     eventsLabel: string;
+    /** USD per MAU above the contracted MAU = (monthly / MAU) × 1.15 */
+    overageRatePerMau: number;
   } | null;
   eventContainer: {
     includedYearlyMn: number;
@@ -378,6 +399,8 @@ export interface PricingResult {
     eventPricePerMillion: number;
     eventPricePerEvent: number;
     emailPerEmail: number | null;
+    /** PX overage per MAU; null when PX is not included */
+    pxPerMau: number | null;
   };
   bundledProducts: LineItem[];
   addons: LineItem[];
@@ -633,16 +656,18 @@ export function calculatePricing(input: PricingInput): PricingResult {
   // ---- PX (optional) ----------------------------------------------------
   let px: PricingResult['px'] = null;
   if (input.px) {
-    const rate = findPxRate(mau, input.px.version);
+    const version = input.px.version ?? DEFAULT_PX_VERSION;
+    const rate = findPxRate(mau, version);
     if (!rate) throw new Error(`MAU ${fmtInt(mau)} is above the PX rate card (max 50,000,000). Custom pricing required.`);
     px = {
-      version: input.px.version,
+      version,
       tierMau: rate.tierMau,
       monthly: rate.usd,
       paidTermTotal: 0, // set in the result once paid months are applied
       eventsYearlyMn: rate.eventsMn,
       mauLabel: fmtMau(mau),
       eventsLabel: fmtEvents(rate.eventsMn),
+      overageRatePerMau: r6((rate.usd / mau) * (1 + (input.pxOverageMarkup ?? DEFAULT_PX_OVERAGE_MARKUP))),
     };
   }
   const pxMonthly = px ? px.monthly : 0;
@@ -714,8 +739,13 @@ export function calculatePricing(input: PricingInput): PricingResult {
       const t = tier ?? EMAIL_TIERS[EMAIL_TIERS.length - 1];
       price = emailUsd(t.inr);
     }
+    // Base per-email rate: the quoted price per email when a price is given, else the tier's rate.
     const tierForRate = tier ?? EMAIL_TIERS[EMAIL_TIERS.length - 1];
-    emailOverage = e.overagePerEmail ?? emailUsd(tierForRate.inr) / tierForRate.emails;
+    const baseRate =
+      e.monthlyListPrice !== undefined && e.emailsPerMonth > 0
+        ? e.monthlyListPrice / e.emailsPerMonth
+        : emailUsd(tierForRate.inr) / tierForRate.emails;
+    emailOverage = e.overagePerEmail ?? baseRate * (1 + (input.emailOverageMarkup ?? DEFAULT_EMAIL_OVERAGE_MARKUP));
     bundled.push(
       mk(
         'email',
@@ -862,6 +892,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
       eventPricePerMillion: r2(perMillion),
       eventPricePerEvent: r6(perMillion / 1e6),
       emailPerEmail: emailOverage === null ? null : r6(emailOverage),
+      pxPerMau: px ? px.overageRatePerMau : null,
     },
     bundledProducts: bundled.map(clean),
     addons: addons.map(clean),

@@ -28,6 +28,21 @@ export const AE_EMAILS = [
   'yuvraj.bhattee@netcore.ai',
 ];
 
+/** Netcore signatory printed in the SOF signature block, by the signed-in user's email. */
+export interface NetcoreSignatory { name: string; title: string }
+export const NETCORE_SIGNATORIES: Record<string, NetcoreSignatory> = {
+  'ankitrihal@gmail.com': { name: 'Ankit Rihal', title: 'Regional Director' },
+  'ankit.rihal@netcore.ai': { name: 'Ankit Rihal', title: 'Regional Director' },
+  'prathamesh.borkar@netcore.ai': { name: 'Prathamesh Borkar', title: 'Senior Account Executive' },
+  'mohd.pakzad@netcore.ai': { name: 'Mohammad Pakzad', title: 'Senior Account Executive' },
+  'don.gonzales@netcore.ai': { name: 'Don Gonzales', title: 'Account Executive' },
+  'yuvraj.bhattee@netcore.ai': { name: 'Yuvraj Bhattee', title: 'Senior Account Executive' },
+};
+/** Signatory for this email, or null (block left blank to fill in by hand). */
+export function getNetcoreSignatory(email: string | null | undefined): NetcoreSignatory | null {
+  return NETCORE_SIGNATORIES[(email ?? '').trim().toLowerCase()] ?? null;
+}
+
 /** SOF countries: picks the Word template, entity details and VAT. */
 export type Country = 'ID' | 'PH';
 
