@@ -84,6 +84,9 @@ export async function docxToPdf(docxBlob) {
         logging: false,
       });
       sliceSection(plan, canvas);
+      if (typeof window !== 'undefined' && window.__SOF_PDF_DEBUG__) {
+        console.log('SOFPDF', JSON.stringify({ height: plan.height, slices: plan.slices, headingZones: plan.headingZones, cuts: plan.cuts, contentTop: plan.contentTop, footerTop: plan.footerTop }));
+      }
       for (const slice of plan.slices) sheets.push({ canvas, plan, slice });
     }
 
@@ -156,10 +159,87 @@ function planSection(section) {
     .map(rel)
     .filter((t) => t.bottom - t.top < room * 0.9);
   const insideKept = (y) => keepTogether.some((t) => y > t.top + 1 && y < t.bottom - 1);
-  plan.cuts = [...new Set([...lines, ...rows, ...keepTogether.map((t) => t.top - 2)].map((y) => Math.round(y)))]
-    .filter((y) => y > contentTop && y < footerTop && !insideKept(y))
+
+  // Keep headings with what follows them (like Word's "keep with next" / CSS break-after: avoid):
+  // no cut between a heading and the first lines of its content, so a heading is never left
+  // alone at the bottom of a sheet; the cut goes just above the heading instead.
+  const headingZones = headingKeepZones(section, rel, room);
+  const insideHeading = (y) => headingZones.some((z) => y > z.top + 1 && y < z.bottom); // +1: the cut just above a heading is allowed
+  plan.headingZones = headingZones;
+
+  plan.cuts = [
+    ...new Set(
+      [...lines, ...rows, ...keepTogether.map((t) => t.top - 2), ...headingZones.map((z) => Math.floor(z.top))].map((y) => Math.round(y)),
+    ),
+  ]
+    .filter((y) => y > contentTop && y < footerTop && !insideKept(y) && !insideHeading(y))
     .sort((a, b) => a - b);
   return plan;
+}
+
+/** A heading: a short paragraph outside tables whose text is all bold (section titles, "Email Products"). */
+function isHeading(el) {
+  if (!el || el.tagName !== 'P' || el.closest('td, th')) return false;
+  const text = (el.textContent ?? '').trim();
+  if (!text || text.length > 90) return false;
+  const spans = [...el.querySelectorAll('span')].filter((sp) => (sp.textContent ?? '').trim());
+  return spans.length > 0 && spans.every((sp) => Number(getComputedStyle(sp).fontWeight) >= 600);
+}
+
+/** Lines a heading must keep with it from the content that follows. */
+const KEEP_LINES = 2;
+/** A section shorter than this share of a sheet moves as a whole (e.g. "06 Agreement" + signature table). */
+const KEEP_SECTION_SHARE = 0.45;
+
+/**
+ * For each heading (or run of consecutive headings), the span that must stay on one sheet:
+ *   - the whole section up to the next heading, when it is short (KEEP_SECTION_SHARE of a sheet);
+ *   - otherwise the heading plus the first KEEP_LINES lines (or first table row) after it.
+ * No cut may fall inside a zone, so the cut goes just above the heading instead.
+ */
+function headingKeepZones(section, rel, room) {
+  const zones = [];
+  const blocks = [...section.querySelectorAll('article > *')];
+  for (let i = 0; i < blocks.length; i++) {
+    if (!isHeading(blocks[i]) || (i > 0 && isHeading(blocks[i - 1]))) continue; // start of a heading run
+    let j = i;
+    while (j + 1 < blocks.length && (isHeading(blocks[j + 1]) || !(blocks[j + 1].textContent ?? '').trim())) j++;
+    const next = blocks[j + 1];
+    let bottom = rel(blocks[j]).bottom;
+    if (next) {
+      if (next.tagName === 'TABLE') {
+        const firstRow = next.querySelector('tr');
+        bottom = firstRow ? rel(firstRow).bottom : rel(next).bottom;
+      } else {
+        const lineBottoms = textLineBottoms(next, rel);
+        bottom = lineBottoms.length ? lineBottoms[Math.min(KEEP_LINES, lineBottoms.length) - 1] : rel(next).bottom;
+      }
+    }
+    const top = rel(blocks[i]).top - 2;
+    // Whole section: from this heading to the next heading (or the end of the page's content)
+    let k = j + 1;
+    while (k < blocks.length && !isHeading(blocks[k])) k++;
+    const lastBlock = blocks[k - 1];
+    const sectionEnd = lastBlock && k - 1 > j ? rel(lastBlock).bottom : bottom;
+    if (sectionEnd - top <= room * KEEP_SECTION_SHARE) bottom = Math.max(bottom, sectionEnd);
+    zones.push({ top, bottom: bottom + 1, text: (blocks[i].textContent ?? '').trim().slice(0, 40) });
+  }
+  return zones;
+}
+
+/** Distinct line bottoms (CSS px from the section top) of the text inside an element. */
+function textLineBottoms(el, rel) {
+  const base = rel(el);
+  const offset = base.top - el.getBoundingClientRect().top; // converts viewport → section coordinates
+  const out = [];
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.textContent?.trim()) continue;
+    range.selectNodeContents(n);
+    for (const r of range.getClientRects()) if (r.height > 0) out.push(Math.round(r.bottom + offset));
+  }
+  return [...new Set(out)].sort((a, b) => a - b).filter((y, k, a) => k === 0 || y - a[k - 1] > 4);
 }
 
 /**
@@ -203,7 +283,12 @@ function sliceSection(plan, canvas) {
       // Lowest candidate on this sheet whose row is clear in the image; else scan for any clear row
       to = plan.cuts.filter((y) => y > from + 40 && y <= limit).reverse().find(clear);
       if (to === undefined) {
-        for (let y = Math.floor(limit); y > from + 40; y--) if (clear(y)) { to = y; break; }
+        // No listed cut fits: scan up for any clear row, jumping over heading zones
+        for (let y = Math.floor(limit); y > from + 40; y--) {
+          const zone = (plan.headingZones ?? []).find((z) => y > z.top + 1 && y < z.bottom);
+          if (zone) { y = Math.floor(zone.top) + 1; continue; }
+          if (clear(y)) { to = y; break; }
+        }
       }
       if (to === undefined) to = limit; // nothing clear (e.g. a block taller than a sheet): hard cut
     }
