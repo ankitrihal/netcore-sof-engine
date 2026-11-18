@@ -200,6 +200,8 @@ export function findPxRate(mau: number, version: PxVersion = DEFAULT_PX_VERSION)
 
 const ceUsd = (inr: number) => inr / INR_PER_USD_CE;
 const emailUsd = (inr: number) => inr / INR_PER_USD_EMAIL;
+/** Drop floating-point noise without rounding real digits: 0.0011 × 1.15 → 0.001265, 0.00137 × 1.15 → 0.0015755. */
+const cleanRate = (n: number) => +n.toPrecision(12);
 
 // ============================================================================
 // Input / output types
@@ -289,7 +291,8 @@ export interface PricingInput {
     aiComponents?: boolean | ({ monthlyListPrice?: number } & Waivable);
     /** Promotional email bundle priced from NETCORE PRICING tiers unless monthlyListPrice given. */
     /** overagePerEmail is a final-rate override; otherwise overage = base per-email rate × (1 + emailOverageMarkup). */
-    email?: { emailsPerMonth: number; monthlyListPrice?: number; overagePerEmail?: number } & Waivable;
+    /** unitPrice = the custom price per email entered on the quote; overage = unitPrice × 1.15 exactly. */
+    email?: { emailsPerMonth: number; monthlyListPrice?: number; unitPrice?: number; overagePerEmail?: number } & Waivable;
     custom?: BundledProductInput[];
   };
 
@@ -739,19 +742,25 @@ export function calculatePricing(input: PricingInput): PricingResult {
       const t = tier ?? EMAIL_TIERS[EMAIL_TIERS.length - 1];
       price = emailUsd(t.inr);
     }
-    // Base per-email rate: the quoted price per email when a price is given, else the tier's rate.
+    // Base per-email rate: the exact unit price entered on the quote; else quoted monthly price ÷ volume;
+    // else the standard tier's rate. Overage = base × (1 + 15%), not rounded (0.00137 → 0.0015755).
     const tierForRate = tier ?? EMAIL_TIERS[EMAIL_TIERS.length - 1];
     const baseRate =
-      e.monthlyListPrice !== undefined && e.emailsPerMonth > 0
-        ? e.monthlyListPrice / e.emailsPerMonth
-        : emailUsd(tierForRate.inr) / tierForRate.emails;
-    emailOverage = e.overagePerEmail ?? baseRate * (1 + (input.emailOverageMarkup ?? DEFAULT_EMAIL_OVERAGE_MARKUP));
+      e.unitPrice !== undefined
+        ? e.unitPrice
+        : e.monthlyListPrice !== undefined && e.emailsPerMonth > 0
+          ? e.monthlyListPrice / e.emailsPerMonth
+          : emailUsd(tierForRate.inr) / tierForRate.emails;
+    const quoted = e.unitPrice !== undefined || e.monthlyListPrice !== undefined;
+    const withMarkup = baseRate * (1 + (input.emailOverageMarkup ?? DEFAULT_EMAIL_OVERAGE_MARKUP));
+    // Quoted prices keep every digit; the standard tier rate (a long fraction) is rounded to 6 dp.
+    emailOverage = e.overagePerEmail !== undefined ? cleanRate(e.overagePerEmail) : quoted ? cleanRate(withMarkup) : r6(withMarkup);
     bundled.push(
       mk(
         'email',
         'Email (Promotional)',
         'bundled',
-        `${fmtInt(e.emailsPerMonth)} emails per month. Overages: USD ${r6(emailOverage)} per email`,
+        `${fmtInt(e.emailsPerMonth)} emails per month. Overages: USD ${emailOverage} per email`,
         price,
         e.complimentary ?? false,
       ),
@@ -891,7 +900,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
       eventPricePerBucket: r2(perBucket),
       eventPricePerMillion: r2(perMillion),
       eventPricePerEvent: r6(perMillion / 1e6),
-      emailPerEmail: emailOverage === null ? null : r6(emailOverage),
+      emailPerEmail: emailOverage,
       pxPerMau: px ? px.overageRatePerMau : null,
     },
     bundledProducts: bundled.map(clean),

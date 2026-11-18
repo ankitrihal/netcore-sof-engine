@@ -332,7 +332,7 @@ function runCalc(f: FormState): Calc {
         // Per-email rate overrides the standard tier: monthly price = emails × rate.
         // Overage per extra email = that rate + 15% (applied in calculatePricing).
         email: emails
-          ? { emailsPerMonth: emails, monthlyListPrice: emails * emailRate! }
+          ? { emailsPerMonth: emails, monthlyListPrice: emails * emailRate!, unitPrice: emailRate! }
           : undefined,
       },
       vatRate: (num(f.vatRate) ?? 0) / 100 || undefined,
