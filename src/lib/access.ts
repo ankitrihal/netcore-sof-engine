@@ -29,9 +29,30 @@ export const NETCORE_SIGNATORIES: Record<string, NetcoreSignatory> = {
   'don.gonzales@netcore.ai': { name: 'Don Gonzales', title: 'Account Executive' },
   'yuvraj.bhattee@netcore.ai': { name: 'Yuvraj Bhattee', title: 'Senior Account Executive' },
 };
-/** Signatory for this email, or null (block left blank to fill in by hand). */
+/**
+ * Display name from an email's local part: "rahul.sharma" → "Rahul Sharma", "priya_k-nair" → "Priya K Nair",
+ * "john2" → "John2", "ankit" → "Ankit". Anything after "+" (mail aliases) is ignored. '' if nothing usable.
+ */
+export function nameFromEmail(email: string | null | undefined): string {
+  const local = (email ?? '').trim().split('@')[0].split('+')[0];
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((w) => (/^[a-z]/i.test(w) ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w))
+    .join(' ');
+}
+
+/**
+ * Signatory for this email: the mapped name and title when listed above; otherwise, for a Netcore
+ * account, a name made from the email (title left blank to fill in by hand). null if neither applies.
+ */
 export function getNetcoreSignatory(email: string | null | undefined): NetcoreSignatory | null {
-  return NETCORE_SIGNATORIES[(email ?? '').trim().toLowerCase()] ?? null;
+  const e = (email ?? '').trim().toLowerCase();
+  const mapped = NETCORE_SIGNATORIES[e];
+  if (mapped) return mapped;
+  if (!isNetcoreEmail(e)) return null;
+  const name = nameFromEmail(e);
+  return name ? { name, title: '' } : null;
 }
 
 /** SOF countries: picks the Word template, entity details and VAT. */
