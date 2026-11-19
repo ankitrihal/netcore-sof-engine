@@ -673,6 +673,7 @@ const LOGO_MAX_BYTES = 1024 * 1024;
  */
 function ClientLogoField({ value, clientName, onChange }: { value: string; clientName: string; onChange: (v: string) => void }) {
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const pick = (file: File | undefined) => {
     setError(null);
@@ -698,9 +699,17 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
     reader.readAsDataURL(file);
   };
   return (
-    <div className="sof-logo-field">
+    <div
+      className={cx(
+        'sof-logo-field rounded-md border p-3 transition',
+        dragging ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-slate-50',
+      )}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
+    >
       <span className={cx(LABEL)}>
-        Client Logo <span className="font-normal normal-case text-slate-400">(optional)</span>
+        Client Logo <span className="font-normal normal-case text-slate-400">(optional · shown on the Indonesia SOF cover)</span>
       </span>
       {value ? (
         <div className="flex items-center gap-3">
@@ -721,10 +730,11 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="sof-logo-upload flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/40"
+          className="sof-logo-upload flex w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-slate-300 bg-white px-3 py-4 text-xs font-semibold text-blue-600 transition hover:border-blue-400 hover:bg-blue-50/60"
         >
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4"><path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
-          Upload logo
+          Upload client logo (PNG)
+          <span className="text-[11px] font-normal text-slate-500">Click to choose, or drop the file here</span>
         </button>
       )}
       <input
