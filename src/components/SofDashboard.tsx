@@ -705,7 +705,7 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
       onDragLeave={() => setDragging(false)}
       onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
     >
-      <span className={cx(LABEL)}>Client Logo (Include Transparent PNG Logo)</span>
+      <span className={cx(LABEL)}>Client Logo (Transparent PNG Logo)</span>
       {value ? (
         <div className="flex items-center gap-3">
           {/* dark backdrop like the cover, so white / transparent logos stay visible */}
@@ -727,7 +727,7 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
           onClick={() => inputRef.current?.click()}
           title="Click to choose a PNG, or drop it here"
           className={cx(
-            'sof-logo-upload inline-flex items-center gap-1.5 rounded-md border border-dashed px-3 py-1.5 text-xs font-medium transition',
+            'sof-logo-upload flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed px-3 py-3 text-xs font-medium transition',
             dragging ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600',
           )}
         >
