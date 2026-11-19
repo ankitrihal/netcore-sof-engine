@@ -70,6 +70,7 @@ export async function docxToPdf(docxBlob) {
       s.style.margin = '0';
       s.style.boxShadow = 'none';
       fixHeaderTab(s);
+      pinFullPageImages(s);
     });
 
     // Build every sheet first (page count is needed for "Page X of N")
@@ -91,10 +92,12 @@ export async function docxToPdf(docxBlob) {
     }
 
     const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait', compress: true });
-    const total = sheets.length;
+    // Page numbers count only pages with the SOF footer (like Word's SECTIONPAGES field), so the
+    // cover and About Netcore pages are skipped and the first SOF page is "Page 1 of N".
+    const numbered = sheets.filter((sh) => sh.plan.numberLine);
     sheets.forEach((sheet, i) => {
       const page = composeSheet(sheet);
-      drawPageNumber(page, sheet.plan, i + 1, total);
+      if (sheet.plan.numberLine) drawPageNumber(page, sheet.plan, numbered.indexOf(sheet) + 1, numbered.length);
       if (i > 0) pdf.addPage('letter', 'portrait');
       pdf.addImage(page.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 612, 792, undefined, 'FAST');
     });
@@ -103,6 +106,44 @@ export async function docxToPdf(docxBlob) {
     wrapper.remove();
     captureFix.remove();
   }
+}
+
+/**
+ * Full-page front pages (cover, About Netcore): zero page margins with a page-sized picture
+ * anchored behind the text. docx-preview draws an anchored picture inside a zero-size inline box,
+ * and the browser lines that box up with the text baseline, so the picture takes a page of
+ * height in the flow: the cover text lands on a second, blank-looking sheet. Pin such pictures
+ * to their page position behind the text instead, and keep the page to exactly one sheet.
+ */
+function pinFullPageImages(section) {
+  const cs = getComputedStyle(section);
+  const zeroMargins = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].every((k) => parseFloat(cs[k]) === 0);
+  if (!zeroMargins) return;
+  const anchors = [...section.querySelectorAll('div')].filter(
+    (d) => d.style.width === '0px' && d.style.height === '0px' && d.querySelector(':scope > img'),
+  );
+  if (!anchors.length) return;
+  section.style.position = 'relative';
+  section.style.zIndex = '0'; // own stacking context: pictures above the page, below the text
+  section.style.height = `${PAGE_H}px`;
+  section.style.minHeight = `${PAGE_H}px`;
+  section.style.overflow = 'hidden';
+  section.dataset.fullPage = '1';
+  const toPx = (v) => {
+    const n = parseFloat(v);
+    if (!Number.isFinite(n)) return 0;
+    return /pt$/.test(v) ? (n * 96) / 72 : n;
+  };
+  for (const a of anchors) {
+    const left = toPx(a.style.left); // offsets are from the page edge (anchors relative to the page)
+    const top = toPx(a.style.top);
+    section.insertBefore(a, section.firstChild);
+    Object.assign(a.style, { position: 'absolute', left: `${left}px`, top: `${top}px`, zIndex: '0', display: 'block' });
+    const img = a.querySelector(':scope > img');
+    Object.assign(img.style, { position: 'absolute', left: '0', top: '0', display: 'block', maxWidth: 'none' });
+  }
+  const article = section.querySelector('article');
+  if (article) Object.assign(article.style, { position: 'relative', zIndex: '1' });
 }
 
 /**
@@ -141,7 +182,10 @@ function planSection(section) {
   const padRight = parseFloat(getComputedStyle(section).paddingRight) || 72;
 
   const plan = { height, contentTop, footerTop, numberLine, padRight, cuts: [], slices: [] };
-  if (height <= PAGE_H + 1) return plan;
+  if (height <= PAGE_H + 1 || section.dataset.fullPage) {
+    plan.height = Math.min(height, PAGE_H); // full-page front pages are always exactly one sheet
+    return plan;
+  }
 
   // Candidate cuts: gaps between text lines and table row edges (checked against the image later)
   const lines = [];

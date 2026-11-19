@@ -17,6 +17,7 @@ export declare function buildSofTemplateData(data: SofExportData | (Omit<SofExpo
 export declare function renderSof(templateBuffer: ArrayBuffer, data: SofExportData | (Omit<SofExportData, 'country'> & { country?: Country })): Blob;
 export type ExportFormat = 'docx' | 'pdf' | 'both';
 export declare const EXPORT_FORMATS: ExportFormat[];
+export declare function pngFromDataUrl(dataUrl: string | null | undefined): { bytes: Uint8Array; width: number; height: number } | null;
 export declare function sofFileName(clientName: string, country?: Country, ext?: 'docx' | 'pdf'): string;
 export interface ExportedFile { name: string; blob: Blob }
 export declare const BOTH_DOWNLOAD_GAP_MS: number;

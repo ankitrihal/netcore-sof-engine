@@ -10,7 +10,7 @@
  * and into onExport.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { ExportFormat } from '../lib/exportSOF';
+import { pngFromDataUrl, type ExportFormat } from '../lib/exportSOF';
 import {
   calculatePricing,
   findPxRate,
@@ -68,6 +68,8 @@ export interface SofExportData {
   billingStartTbd?: boolean;
   /** File(s) to download: Word (default), PDF, or both. */
   format?: ExportFormat;
+  /** Indonesia cover page: client logo as a PNG data URL (transparent PNG); omitted → client name text. */
+  clientLogo?: string | null;
   /** Netcore signatory for the signature block: the signed-in user creating the SOF. */
   signatory?: { name: string; title: string } | null;
 }
@@ -204,6 +206,8 @@ const DEFAULT_EMAIL_RATE = '0.0011';
 
 /** The dashboard's complete form state. This exact object is saved as form_data in Supabase. */
 export interface FormState extends Omit<ClientDetails, BillingKey> {
+  /** Indonesia cover page logo: transparent PNG as a data URL ('' = none → client name text). */
+  clientLogo: string;
   billingContact: string | null; // null = same as Primary Contact
   billingEmail: string | null; // null = same as Primary Email
   billingPhone: string | null; // null = same as Primary Phone
@@ -235,6 +239,7 @@ const billingValue = (f: FormState, k: BillingKey) => f[k] ?? f[BILLING_SOURCE[k
 
 export const INITIAL: FormState = {
   clientName: '',
+  clientLogo: '',
   billingAddress: '',
   primaryContact: '',
   primaryEmail: '',
@@ -656,6 +661,88 @@ function ReadOnlyField({ label, value, hint }: { label: string; value: string; h
       </span>
       {hint && <span className={cx('sof-hint', HINT)}>{hint}</span>}
     </label>
+  );
+}
+
+/** Largest logo file accepted (it is saved with the SOF). */
+const LOGO_MAX_BYTES = 1024 * 1024;
+
+/**
+ * Optional client logo for the Indonesia cover page ("Presented to" spot beside "Commercial Proposal").
+ * Transparent PNG only; without one, the SOF shows the client name there instead.
+ */
+function ClientLogoField({ value, clientName, onChange }: { value: string; clientName: string; onChange: (v: string) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pick = (file: File | undefined) => {
+    setError(null);
+    if (!file) return;
+    if (file.type !== 'image/png' && !/\.png$/i.test(file.name)) {
+      setError('Please choose a PNG file (a transparent PNG works best on the cover).');
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setError(`That file is ${(file.size / 1024 / 1024).toFixed(1)} MB. Please use a PNG under 1 MB.`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = String(reader.result ?? '').replace(/^data:[^;,]*;base64,/, 'data:image/png;base64,');
+      if (!pngFromDataUrl(url)) {
+        setError("That file isn't a valid PNG image.");
+        return;
+      }
+      onChange(url);
+    };
+    reader.onerror = () => setError("Couldn't read that file. Please try another.");
+    reader.readAsDataURL(file);
+  };
+  return (
+    <div className="sof-logo-field">
+      <span className={cx(LABEL)}>
+        Client Logo <span className="font-normal normal-case text-slate-400">(optional)</span>
+      </span>
+      {value ? (
+        <div className="flex items-center gap-3">
+          {/* dark backdrop like the cover, so white / transparent logos stay visible */}
+          <div className="sof-logo-preview flex h-14 w-36 items-center justify-center rounded-md bg-gradient-to-r from-stone-900 to-orange-800 p-2">
+            <img src={value} alt={`${clientName || 'Client'} logo`} className="max-h-full max-w-full object-contain" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <button type="button" onClick={() => inputRef.current?.click()} className="sof-logo-replace text-left text-xs font-medium text-blue-600 hover:underline">
+              Replace
+            </button>
+            <button type="button" onClick={() => { onChange(''); setError(null); }} className="sof-logo-remove text-left text-xs font-medium text-red-600 hover:underline">
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="sof-logo-upload flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-blue-400 hover:bg-blue-50/40"
+        >
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4"><path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
+          Upload logo
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,.png"
+        className="sof-logo-input hidden"
+        onChange={(e) => {
+          pick(e.target.files?.[0]);
+          e.target.value = ''; // allow choosing the same file again
+        }}
+      />
+      {error ? (
+        <span className="sof-error mt-1 block text-[11px] font-medium text-red-600" role="alert">{error}</span>
+      ) : (
+        <span className={cx('sof-hint', HINT)}>(Include transparent PNG logo)</span>
+      )}
+    </div>
   );
 }
 
@@ -1147,7 +1234,16 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
       alert(`Cannot export SOF. ${calc.errors.join(' ')}`);
       return;
     }
-    onExport({ client, pricing: calc.r, country: countryLock ?? countryFromVat(f.vatRate), form: f, billingStartTbd: f.billingStartTbd, format });
+    const exportCountry = countryLock ?? countryFromVat(f.vatRate);
+    onExport({
+      client,
+      pricing: calc.r,
+      country: exportCountry,
+      form: f,
+      billingStartTbd: f.billingStartTbd,
+      format,
+      clientLogo: exportCountry === 'ID' && f.clientLogo ? f.clientLogo : null, // cover logo: Indonesia only
+    });
   };
 
   return (
@@ -1168,6 +1264,9 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
           <Card title="Client Details">
             <Field label="Client Name" type="text" required value={f.clientName} onChange={set('clientName')}
               placeholder="e.g. PT Lotte Shopping Indonesia" autoComplete="organization" />
+            {(countryLock ?? countryFromVat(f.vatRate)) === 'ID' && (
+              <ClientLogoField value={f.clientLogo} clientName={f.clientName} onChange={set('clientLogo')} />
+            )}
             <Field label="Billing Address" multiline required value={f.billingAddress} onChange={set('billingAddress')}
               placeholder="Street, city, postcode" autoComplete="street-address" />
             <Field label="Primary Contact" type="text" required value={f.primaryContact} onChange={set('primaryContact')}

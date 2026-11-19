@@ -392,11 +392,96 @@ export function renderSof(templateBuffer, exportData) {
     const details = err?.properties?.errors?.map((e) => e.properties?.explanation).filter(Boolean);
     throw new Error(details?.length ? `Template error: ${details.join('; ')}` : err.message);
   }
+  applyCoverLogo(doc.getZip(), exportData.client?.clientName ?? '', exportData.clientLogo);
   return doc.getZip().generate({
     type: 'blob',
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     compression: 'DEFLATE',
   });
+}
+
+// ---------------------------------------------------------------------------
+// Cover page client logo (Indonesia template)
+// The cover has a paragraph bookmarked "ClientLogoSpot", beside the "Commercial Proposal"
+// divider, holding {clientName}. With a PNG logo, the name is swapped for the logo scaled to
+// fit; without one, the name stays as text, sized to fit on one line. Templates without the
+// bookmark (Philippines) are left untouched.
+// ---------------------------------------------------------------------------
+const LOGO_SPOT_RE = /(<w:bookmarkStart w:id="\d+" w:name="ClientLogoSpot"\/>)([\s\S]*?)(<w:bookmarkEnd w:id="\d+"\/>)/;
+const EMU_PER_INCH = 914400;
+/** Room for the logo: 2.6 in wide (1.6 in → 4.2 in from the left edge), 0.7 in tall. */
+const LOGO_MAX = { w: 2.6 * EMU_PER_INCH, h: 0.7 * EMU_PER_INCH };
+const LOGO_REL_ID = 'rIdClientLogo';
+const LOGO_MEDIA = 'word/media/client_logo.png';
+
+/** PNG bytes from a data URL ("data:image/png;base64,…"), or null if it isn't a PNG. */
+export function pngFromDataUrl(dataUrl) {
+  const m = /^data:image\/png;base64,(.+)$/.exec(dataUrl ?? '');
+  if (!m) return null;
+  const bin = atob(m[1]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+  if (bytes.length < 24 || sig.some((b, i) => bytes[i] !== b)) return null;
+  const u32 = (o) => ((bytes[o] << 24) | (bytes[o + 1] << 16) | (bytes[o + 2] << 8) | bytes[o + 3]) >>> 0;
+  const width = u32(16);
+  const height = u32(20);
+  return width > 0 && height > 0 ? { bytes, width, height } : null;
+}
+
+function applyCoverLogo(zip, clientName, logoDataUrl) {
+  const docPath = 'word/document.xml';
+  const xml = zip.file(docPath)?.asText();
+  if (!xml || !LOGO_SPOT_RE.test(xml)) return;
+
+  const png = pngFromDataUrl(logoDataUrl);
+  if (png) {
+    const scale = Math.min(LOGO_MAX.w / png.width, LOGO_MAX.h / png.height);
+    const cx = Math.round(png.width * scale);
+    const cy = Math.round(png.height * scale);
+    const name = escapeXml(clientName || 'Client');
+    const run =
+      '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+      `<wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>` +
+      `<wp:docPr id="9101" name="Client Logo" descr="${name} logo"/>` +
+      '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+      '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:nvPicPr><pic:cNvPr id="9101" name="client_logo.png"/><pic:cNvPicPr/></pic:nvPicPr>' +
+      `<pic:blipFill><a:blip r:embed="${LOGO_REL_ID}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+      `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>` +
+      '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+    zip.file(docPath, xml.replace(LOGO_SPOT_RE, `$1${run}$3`));
+    zip.file(LOGO_MEDIA, png.bytes);
+    const relsPath = 'word/_rels/document.xml.rels';
+    const rels = zip.file(relsPath).asText();
+    if (!rels.includes(`Id="${LOGO_REL_ID}"`)) {
+      zip.file(
+        relsPath,
+        rels.replace(
+          '</Relationships>',
+          `<Relationship Id="${LOGO_REL_ID}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/client_logo.png"/></Relationships>`,
+        ),
+      );
+    }
+    return;
+  }
+
+  // No logo: keep the client name as text. Fit it on one line (up to 20 pt, down to 8 pt) and
+  // give it more room to the left (from 1.0 in), still ending at the divider.
+  const len = Math.max((clientName || '').trim().length, 1);
+  const pt = Math.max(8, Math.min(20, 230 / (0.56 * len)));
+  const halfPts = Math.round(pt * 2);
+  const out = xml.replace(LOGO_SPOT_RE, (all, start, inner, end) => {
+    const sized = inner.replace(/<w:sz w:val="\d+"\/>/, `<w:sz w:val="${halfPts}"/>`).replace(/<w:szCs w:val="\d+"\/>/, `<w:szCs w:val="${halfPts}"/>`);
+    return start + sized + end;
+  });
+  // the spot's paragraph indent: widen to the left for text
+  zip.file(docPath, out.replace(/(<w:ind w:left=")2304(" w:right="6192"\/><w:jc w:val="right"\/><\/w:pPr><w:bookmarkStart w:id="\d+" w:name="ClientLogoSpot")/, '$11440$2'));
+}
+
+function escapeXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 /** "SOF - ID - PT Lotte Shopping Indonesia - 2026-11-18.docx" (ext: 'docx' or 'pdf') */
