@@ -2,17 +2,15 @@
  * access.ts: who may use the SOF Engine, and which country they work in.
  *
  *   Admins (ankitrihal@gmail.com, ankit.rihal@netcore.ai)
- *       → every SOF (master history list), and free switching between Indonesia and Philippines
- *   Philippines Account Executives (don.gonzales, yuvraj.bhattee @netcore.ai)
- *       → own SOFs only; locked to Philippines: 12% VAT, SOF_Template_PH.docx, Netcore Cloud Pte Ltd
- *   Indonesia Account Executives (mohd.pakzad, prathamesh.borkar @netcore.ai)
- *       → own SOFs only; locked to Indonesia: 11% VAT, SOF_Template_ID.docx, PT Tera Achiever
- *   Other @netcore.ai accounts → stay signed in, but wait on the "Request Access" screen
- *   Everyone else              → signed out with "Unauthorized: Only Netcore accounts are allowed."
+ *       → every SOF (master history list), deleting SOFs, and free switching between Indonesia and Philippines
+ *   Any verified @netcore.ai account → the app automatically, own SOFs only (no allowlist to maintain)
+ *       Philippines team (don.gonzales, yuvraj.bhattee) → locked to Philippines: 12% VAT, SOF_Template_PH.docx
+ *       Indonesia team (mohd.pakzad, prathamesh.borkar) → locked to Indonesia: 11% VAT, SOF_Template_ID.docx
+ *       Everyone else at Netcore → can choose either country
+ *   Everyone else → signed out with "Unauthorized: Only Netcore accounts are allowed."
  *
- * Keep these lists in sync with supabase/schema.sql (functions is_approved_email,
- * is_admin and can_sign_in). The database enforces them; the app uses them to show
- * the right screen and lock the country.
+ * Keep in sync with supabase/schema.sql (is_netcore_email, is_admin_email, has_app_access).
+ * The database enforces the same rules; the app uses them to show the right screen and lock the country.
  */
 
 const norm = (email: string | null | undefined) => (email ?? '').trim().toLowerCase();
@@ -20,13 +18,6 @@ const norm = (email: string | null | undefined) => (email ?? '').trim().toLowerC
 /** Unrestricted access to all SOFs. */
 export const ADMIN_EMAILS = ['ankitrihal@gmail.com', 'ankit.rihal@netcore.ai'];
 
-/** Approved Account Executives (AEs): dashboard access, own SOFs only. */
-export const AE_EMAILS = [
-  'mohd.pakzad@netcore.ai',
-  'prathamesh.borkar@netcore.ai',
-  'don.gonzales@netcore.ai',
-  'yuvraj.bhattee@netcore.ai',
-];
 
 /** Netcore signatory printed in the SOF signature block, by the signed-in user's email. */
 export interface NetcoreSignatory { name: string; title: string }
@@ -66,39 +57,34 @@ export function getUserCountryLock(email: string | null | undefined): Country | 
 /** Country from the VAT dropdown value ('12' → Philippines, otherwise Indonesia). */
 export const countryFromVat = (vat: string | number | null | undefined): Country => (String(vat) === '12' ? 'PH' : 'ID');
 
-/** Accounts from this domain that aren't approved get the Request Access screen. */
-export const NETCORE_DOMAIN = '@netcore.ai';
-
-/** Where access requests go. */
-export const ACCESS_REQUEST_EMAIL = 'ankit.rihal@netcore.ai';
+/** Company domain: any verified account here gets in automatically. */
+export const NETCORE_DOMAIN = 'netcore.ai';
 
 export const UNAUTHORIZED_MESSAGE = 'Unauthorized: Only Netcore accounts are allowed.';
-export const REQUEST_SENT_MESSAGE =
-  'Your request has been sent to the Admin. You will be informed manually once approved.';
+export const UNVERIFIED_MESSAGE =
+  'Unauthorized: Your Netcore email address is not verified. Please sign in with your verified @netcore.ai Google account.';
 
-export type AccessLevel = 'admin' | 'ae' | 'pending' | 'denied';
+/** Exactly name@netcore.ai (trimmed, any case). Not subdomains like name@x.netcore.ai, not look-alikes. */
+export function isNetcoreEmail(email: string | null | undefined): boolean {
+  return /^[^\s@]+@netcore\.ai$/.test(norm(email));
+}
 
+export type AccessLevel = 'admin' | 'member' | 'denied';
+
+/**
+ * admin  → admins (all SOFs, delete, any country)
+ * member → any other @netcore.ai account (own SOFs)
+ * denied → everyone else
+ * The email must also be verified; the sign-in screen checks that separately (see AuthGate).
+ */
 export function getAccessLevel(email: string | null | undefined): AccessLevel {
   const e = norm(email);
   if (ADMIN_EMAILS.includes(e)) return 'admin';
-  if (AE_EMAILS.includes(e)) return 'ae';
-  if (e.endsWith(NETCORE_DOMAIN)) return 'pending';
+  if (isNetcoreEmail(e)) return 'member';
   return 'denied';
 }
 
 export const isAdminEmail = (email: string | null | undefined) => getAccessLevel(email) === 'admin';
 
-/** Admins and approved Account Executives: may open the dashboard and read/write SOFs. */
-export const isApprovedEmail = (email: string | null | undefined) => {
-  const level = getAccessLevel(email);
-  return level === 'admin' || level === 'ae';
-};
-
-/** mailto: link for the Request Access button. */
-export function accessRequestMailto(email: string, name?: string): string {
-  const subject = `SOF Engine Access Request - ${email}`;
-  const body =
-    `Hi Ankit,\n\nPlease grant me access to the SOF Engine.\n\n` +
-    `Name: ${name || '-'}\nEmail: ${email}\n\nThank you.`;
-  return `mailto:${ACCESS_REQUEST_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
+/** Admins and Netcore accounts: may open the dashboard and read/write their SOFs. */
+export const hasAppAccess = (email: string | null | undefined) => getAccessLevel(email) !== 'denied';

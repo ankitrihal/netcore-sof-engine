@@ -17,14 +17,15 @@ This creates the `saved_sofs` table and these rules, enforced by the database it
 
 | Who | What they get |
 | --- | --- |
-| Admins: `ankitrihal@gmail.com`, `ankit.rihal@netcore.ai` | See and edit **every** SOF (master history); switch freely between Indonesia and Philippines |
-| Philippines Account Executives: `don.gonzales`, `yuvraj.bhattee` (`@netcore.ai`) | Their **own** SOFs only; locked to Philippines (12% VAT, `SOF_Template_PH.docx`, Netcore Cloud Pte Ltd) |
-| Indonesia Account Executives: `mohd.pakzad`, `prathamesh.borkar` (`@netcore.ai`) | Their **own** SOFs only; locked to Indonesia (11% VAT, `SOF_Template_ID.docx`, PT Tera Achiever) |
-| Any other `@netcore.ai` account | Can sign in, but only sees a **Request Access** screen; no data |
+| Admins: `ankitrihal@gmail.com`, `ankit.rihal@netcore.ai` | See, edit and delete **every** SOF (master history); switch freely between Indonesia and Philippines |
+| **Any verified `@netcore.ai` account** | Gets in automatically (no list to maintain); their **own** SOFs only; can choose Indonesia or Philippines |
+| Philippines team: `don.gonzales`, `yuvraj.bhattee` (`@netcore.ai`) | As above, but locked to Philippines (12% VAT, `SOF_Template_PH.docx`, Netcore Cloud Pte Ltd) |
+| Indonesia team: `mohd.pakzad`, `prathamesh.borkar` (`@netcore.ai`) | As above, but locked to Indonesia (11% VAT, `SOF_Template_ID.docx`, PT Tera Achiever) |
+| A `@netcore.ai` address whose email isn't verified | Nothing ("…your Netcore email address is not verified…") |
 | Anyone else, or signed-out visitors | Nothing ("Unauthorized: Only Netcore accounts are allowed.") |
 
-**Already ran the first version of `schema.sql`?** Run `supabase/migrations/002_approved_users.sql` instead
-(or simply re-run the current `schema.sql`; both end in the same state).
+**Already set up with an older `schema.sql`?** Run `supabase/migrations/003_netcore_domain_access.sql` once
+in the SQL Editor (or simply re-run the current `schema.sql`; both end in the same state).
 
 ## 3. Create the Google sign-in credentials
 
@@ -52,7 +53,7 @@ This creates the `saved_sofs` table and these rules, enforced by the database it
 
 **Authentication → Hooks → Before User Created** → **Postgres function** → choose `public.hook_restrict_signup` → enable.
 
-It lets in admins and any `@netcore.ai` account (unapproved ones need to reach the Request Access screen) and rejects everything else. Without it, an outside Google account can still create a user record in Supabase. It can't read or save anything, and the app signs it straight out, but the hook stops it at the door and keeps your user list clean.
+It lets in admins and any `@netcore.ai` account and rejects everything else. Without it, an outside Google account can still create a user record in Supabase. It can't read or save anything, and the app signs it straight out, but the hook stops it at the door and keeps your user list clean.
 
 ## 6. Connect the app
 
@@ -71,22 +72,17 @@ It lets in admins and any `@netcore.ai` account (unapproved ones need to reach t
 
 ## 7. Check it works
 
-- Sign in as an approved Account Executive → the dashboard opens. **Save SOF**, then **SOF History** shows only their SOFs.
+- Sign in with any `@netcore.ai` account → the dashboard opens. **Save SOF**, then **SOF History** shows only their SOFs.
 - Sign in as `ankit.rihal@netcore.ai` or `ankitrihal@gmail.com` → an **Admin** badge, and SOF History lists everyone's SOFs with a **Created by** column.
-- Sign in with a `@netcore.ai` account that isn't approved → the **Request Access** screen. Clicking **Request Access**
-  opens an email to `ankit.rihal@netcore.ai` titled "SOF Engine Access Request - their email".
 - Sign in with any other Google account → "Unauthorized: Only Netcore accounts are allowed."
 
-## Approving an Account Executive (or changing admins)
+## New team members, country locks and admins
 
-When an access request email arrives, edit **both** places so the app and the database agree:
-
-1. `src/lib/access.ts`: add the email to `AE_EMAILS` **and** to their country in `COUNTRY_TEAMS` (or to `ADMIN_EMAILS`).
-2. `supabase/schema.sql`: add the same email inside `is_approved_email()` (admins also go in `is_admin()`),
-   then re-run the file in the Supabase SQL Editor.
-3. Restart or redeploy the app. Then tell the person; they just sign in again.
-
-Until both are updated, the person stays on the Request Access screen and the database gives them no data.
+- **New Netcore colleague:** nothing to do. They sign in with their `@netcore.ai` Google account and get in.
+- **Lock someone to a country:** add their email to `COUNTRY_TEAMS` in `src/lib/access.ts` (and to `NETCORE_SIGNATORIES`
+  for their name and title on the SOF signature block), then redeploy.
+- **Change admins:** edit `ADMIN_EMAILS` in `src/lib/access.ts` **and** `is_admin_email()` + `is_admin()` in
+  `supabase/schema.sql`, re-run the file in the Supabase SQL Editor, and redeploy.
 
 ## Going live later (e.g. Vercel or Netlify)
 

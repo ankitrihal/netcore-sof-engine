@@ -1,25 +1,17 @@
 /**
- * AuthGate.tsx: Google sign-in with an approved-users list.
+ * AuthGate.tsx: Google sign-in for Netcore accounts.
  *
- *   Admins and approved Account Executives   → the app
- *   Other @netcore.ai accounts → "Request Access" screen (stay signed in, no data access)
- *   Anyone else                → signed out: "Unauthorized: Only Netcore accounts are allowed."
- * The database enforces the same list (supabase/schema.sql), so the screens are not the only lock.
+ *   Any verified @netcore.ai account (and the admins) → the app, automatically
+ *   An unverified email                               → signed out with a "not verified" message
+ *   Anyone else                                       → signed out: "Unauthorized: Only Netcore accounts are allowed."
+ * The database enforces the same rules (supabase/schema.sql), so this screen is not the only lock.
  *
  *   <AuthGate>{(user) => <App user={user} />}</AuthGate>
  */
 import React, { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from '../lib/supabaseClient';
-import {
-  ACCESS_REQUEST_EMAIL,
-  accessRequestMailto,
-  getAccessLevel,
-  getUserCountryLock,
-  REQUEST_SENT_MESSAGE,
-  type Country,
-  UNAUTHORIZED_MESSAGE,
-} from '../lib/access';
+import { getAccessLevel, getUserCountryLock, type Country, UNAUTHORIZED_MESSAGE, UNVERIFIED_MESSAGE } from '../lib/access';
 
 export interface AppUser {
   email: string;
@@ -29,6 +21,19 @@ export interface AppUser {
   /** Country this user's SOFs are locked to (ID/PH), or null if they can switch (admins). */
   countryLock: Country | null;
   signOut: () => Promise<void>;
+}
+
+/** Email verified by the identity provider (Google sets this for every Workspace/Gmail address). */
+function isEmailVerified(s: Session): boolean {
+  const u = s.user as Session['user'] & { email_confirmed_at?: string | null; confirmed_at?: string | null };
+  return Boolean(u.email_confirmed_at || u.confirmed_at || u.user_metadata?.email_verified === true);
+}
+
+/** Why this session may not use the app, or null if it may. */
+function refusal(s: Session): string | null {
+  if (getAccessLevel(s.user.email) === 'denied') return UNAUTHORIZED_MESSAGE;
+  if (!isEmailVerified(s)) return UNVERIFIED_MESSAGE;
+  return null;
 }
 
 /** Error passed back in the URL after a refused Google sign-in (e.g. by the sign-up hook). */
@@ -56,11 +61,12 @@ export default function AuthGate({ children }: { children: (user: AppUser) => Re
     }
     const sb = supabase;
 
-    /** Keep the session for admins, approved Account Executives and pending Netcore accounts; sign anyone else out. */
+    /** Keep the session for admins and verified Netcore accounts; sign anyone else out with the reason. */
     const apply = async (s: Session | null) => {
-      if (s && getAccessLevel(s.user.email) === 'denied') {
+      const reason = s ? refusal(s) : null;
+      if (s && reason) {
         setSession(null);
-        setError(UNAUTHORIZED_MESSAGE);
+        setError(reason);
         await sb.auth.signOut();
       } else {
         setSession(s);
@@ -130,12 +136,7 @@ export default function AuthGate({ children }: { children: (user: AppUser) => Re
   const signOut = async () => {
     await supabase!.auth.signOut();
   };
-  const level = getAccessLevel(email);
-
-  // Netcore account that isn't on the approved list: wait here.
-  if (level !== 'admin' && level !== 'ae') {
-    return <RequestAccessScreen email={email} name={name} onSignOut={signOut} />;
-  }
+  const level = getAccessLevel(email); // 'admin' or 'member' here: refused sessions were signed out above
 
   const user: AppUser = {
     email,
@@ -146,78 +147,6 @@ export default function AuthGate({ children }: { children: (user: AppUser) => Re
     signOut,
   };
   return <>{children(user)}</>;
-}
-
-/** Opens the user's mail app with a pre-filled request (anchor click works in every browser). */
-function openMailto(href: string) {
-  const a = document.createElement('a');
-  a.href = href;
-  a.rel = 'noopener';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-const requestedKey = (email: string) => `sofEngine.accessRequested.${email}`;
-
-function RequestAccessScreen({ email, name, onSignOut }: { email: string; name: string; onSignOut: () => Promise<void> }) {
-  const [requested, setRequested] = useState(() => {
-    try {
-      return localStorage.getItem(requestedKey(email)) === '1';
-    } catch {
-      return false;
-    }
-  });
-
-  const request = () => {
-    openMailto(accessRequestMailto(email, name));
-    setRequested(true); // hide the button, show the confirmation
-    try {
-      localStorage.setItem(requestedKey(email), '1');
-    } catch {
-      /* private mode: confirmation still shows for this visit */
-    }
-  };
-
-  return (
-    <Screen>
-      <div className="sof-request-access">
-        <h1 className="text-lg font-semibold text-slate-900">Access required</h1>
-        <p className="mt-2 text-sm text-slate-600">
-          You're signed in as <span className="font-medium text-slate-900">{email}</span>, but this account hasn't been
-          approved for the SOF Engine yet. An admin needs to give you permission before you can create or view Sales
-          Order Forms.
-        </p>
-        {requested ? (
-          <div role="status" className="sof-request-sent mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-            {REQUEST_SENT_MESSAGE}
-          </div>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={request}
-              className="sof-request-btn mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:ring-offset-2"
-            >
-              <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4">
-                <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z" />
-                <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z" />
-              </svg>
-              Request Access
-            </button>
-            <p className="mt-2 text-center text-xs text-slate-500">Opens an email to {ACCESS_REQUEST_EMAIL}</p>
-          </>
-        )}
-        <button
-          type="button"
-          onClick={() => void onSignOut()}
-          className="sof-request-signout mt-6 w-full text-center text-sm font-medium text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
-        >
-          Sign out and use a different account
-        </button>
-      </div>
-    </Screen>
-  );
 }
 
 function Screen({ children }: { children: React.ReactNode }) {
