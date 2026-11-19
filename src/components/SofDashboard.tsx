@@ -700,21 +700,16 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
   };
   return (
     <div
-      className={cx(
-        'sof-logo-field rounded-md border p-3 transition',
-        dragging ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-slate-50',
-      )}
+      className="sof-logo-field"
       onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
     >
-      <span className={cx(LABEL)}>
-        Client Logo <span className="font-normal normal-case text-slate-400">(optional · shown on the Indonesia SOF cover)</span>
-      </span>
+      <span className={cx(LABEL)}>Client Logo (Include Transparent PNG Logo)</span>
       {value ? (
         <div className="flex items-center gap-3">
           {/* dark backdrop like the cover, so white / transparent logos stay visible */}
-          <div className="sof-logo-preview flex h-14 w-36 items-center justify-center rounded-md bg-gradient-to-r from-stone-900 to-orange-800 p-2">
+          <div className="sof-logo-preview flex h-10 w-28 items-center justify-center rounded-md bg-gradient-to-r from-stone-900 to-orange-800 p-1.5">
             <img src={value} alt={`${clientName || 'Client'} logo`} className="max-h-full max-w-full object-contain" />
           </div>
           <div className="flex flex-col gap-1">
@@ -730,11 +725,14 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="sof-logo-upload flex w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-slate-300 bg-white px-3 py-4 text-xs font-semibold text-blue-600 transition hover:border-blue-400 hover:bg-blue-50/60"
+          title="Click to choose a PNG, or drop it here"
+          className={cx(
+            'sof-logo-upload inline-flex items-center gap-1.5 rounded-md border border-dashed px-3 py-1.5 text-xs font-medium transition',
+            dragging ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-slate-300 bg-white text-slate-600 hover:border-blue-400 hover:text-blue-600',
+          )}
         >
-          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-4 w-4"><path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
-          Upload client logo (PNG)
-          <span className="text-[11px] font-normal text-slate-500">Click to choose, or drop the file here</span>
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-3.5 w-3.5"><path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
+          Upload
         </button>
       )}
       <input
@@ -747,11 +745,7 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
           e.target.value = ''; // allow choosing the same file again
         }}
       />
-      {error ? (
-        <span className="sof-error mt-1 block text-[11px] font-medium text-red-600" role="alert">{error}</span>
-      ) : (
-        <span className={cx('sof-hint', HINT)}>(Include transparent PNG logo)</span>
-      )}
+      {error && <span className="sof-error mt-1 block text-[11px] font-medium text-red-600" role="alert">{error}</span>}
     </div>
   );
 }
