@@ -18,6 +18,7 @@ import {
   pxOverageText,
   PX_PRODUCT_NAME,
   BILLING_START_TBD_TEXT,
+  csmDetails,
   resolveTerm,
   type Market,
   type PricingResult,
@@ -1048,7 +1049,7 @@ function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: 
           <SectionRow>Customer Success Manager (CSM)</SectionRow>
           <tr>
             <td className={cx(TD, 'font-medium text-slate-900')}>{r.csm.name.replace('Customer Success Manager (CSM) – ', '')}</td>
-            <td className={TD} />
+            <td className={cx('sof-csm-details', TD)}>{csmDetails(csm)}</td>
             <td className={cx(TD, NUM)}>
               <Price value={csm.monthlyList} discounted={csm.fullyDiscounted} />
             </td>

@@ -39,6 +39,14 @@ export const INR_PER_USD_EMAIL = 70; // NETCORE PRICING conversion
 export const DEFAULT_MAU_OVERAGE_MARKUP = 0.35;
 /** PX overage rate per MAU = (PX monthly price / MAU) × (1 + 15%) */
 export const DEFAULT_PX_OVERAGE_MARKUP = 0.15;
+/** CSM scope shown in the details column of the CSM row (preview and SOF). */
+export const CSM_DETAILS =
+  'After Sales Support, Training, Best Practices, Recommendations and Suggestions, Weekly reporting and QBRs.';
+
+/** CSM details text when the CSM is part of the deal (paid or complimentary), else ''. */
+export const csmDetails = (csm: { monthlyList: number; fullyDiscounted: boolean }) =>
+  csm.monthlyList > 0 || csm.fullyDiscounted ? CSM_DETAILS : '';
+
 /** Shown instead of a date when the Billing Start Date is still To Be Discussed. */
 export const BILLING_START_TBD_TEXT = 'TBD - To be Discussed';
 /** Email overage rate = base per-email rate × (1 + 15%) */

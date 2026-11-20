@@ -35,7 +35,7 @@
  *            {detailsMultiline} (one item per line, e.g. each AI feature) {/bundled}
  *            PX row comes first, only when PX is included: "Product Experience, Nudges and
  *            Contextual Walkthroughs" / "500K MAU with 200 Mio Events / Year"
- * CSM        {csmLabel} {csmFeeMonthly} {csmFeeTotal} · {#csmDiscounted}…{/csmDiscounted} · {^csmDiscounted}…{/csmDiscounted}
+ * CSM        {csmLabel} {csmDetails} {csmFeeMonthly} {csmFeeTotal} · {#csmDiscounted}…{/csmDiscounted} · {^csmDiscounted}…{/csmDiscounted}
  * ADD-ONS    {#addons}…same fields as bundled…{/addons} · {#hasAddons}…{/hasAddons}
  * TOTALS     {totalMonthly} {listTCV} {totalContractValue}
  *            {#hasSavings}…{/hasSavings} {youSave} {youSaveInclComplimentary} {complimentaryPeriodValue}
@@ -59,7 +59,7 @@
  */
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
-import { PX_PRODUCT_NAME, pxDetails, pxOverageText, BILLING_START_TBD_TEXT } from './pricingCalculator';
+import { PX_PRODUCT_NAME, pxDetails, pxOverageText, BILLING_START_TBD_TEXT, csmDetails } from './pricingCalculator';
 
 /**
  * Word templates, served from the public/ folder, one per country.
@@ -336,6 +336,7 @@ export function buildSofTemplateData(data) {
 
     // CSM
     csmLabel: csm.name.replace('Customer Success Manager (CSM) – ', ''),
+    csmDetails: csmDetails(csm), // "After Sales Support, Training, …" when the CSM is included
     csmFeeMonthly: money(csm.monthlyList),
     csmFeeTotal: money(csm.paidTermList),
     csmDiscounted: csm.fullyDiscounted,
