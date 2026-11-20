@@ -772,8 +772,8 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
 }
 
 const REGION_OPTIONS: { country: Country; label: string; detail: string }[] = [
-  { country: 'ID', label: 'Indonesia', detail: '11% VAT · PT Tera Achiever' },
-  { country: 'PH', label: 'Philippines', detail: '12% VAT · Netcore Cloud Pte Ltd' },
+  { country: 'ID', label: 'Indonesia', detail: '11% VAT' },
+  { country: 'PH', label: 'Philippines', detail: '12% VAT' },
 ];
 
 const EXPORT_OPTIONS: { format: ExportFormat; label: string; hint: string }[] = [
