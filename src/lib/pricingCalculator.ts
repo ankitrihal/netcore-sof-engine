@@ -221,6 +221,14 @@ const cleanRate = (n: number) => +n.toPrecision(12);
 
 export type DateInput = string | Date; // 'YYYY-MM-DD' recommended
 
+/** Connector channels offered in Bundled Products, in display order. */
+export const CONNECTOR_CHANNELS = ['WhatsApp', 'Viber', 'SMS'] as const;
+export type ConnectorChannel = (typeof CONNECTOR_CHANNELS)[number];
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+/** 'Connector Maintenance Cost (for two components)' */
+export const connectorDetails = (count: number) =>
+  `Connector Maintenance Cost (for ${COUNT_WORDS[count] ?? String(count)} component${count === 1 ? '' : 's'})`;
+
 export interface Waivable {
   /** true → shown at list price but waived (counts toward "You Save") */
   complimentary?: boolean;
@@ -305,6 +313,8 @@ export interface PricingInput {
     /** overagePerEmail is a final-rate override; otherwise overage = base per-email rate × (1 + emailOverageMarkup). */
     /** unitPrice = the custom price per email entered on the quote; overage = unitPrice × 1.15 exactly. */
     email?: { emailsPerMonth: number; monthlyListPrice?: number; unitPrice?: number; overagePerEmail?: number } & Waivable;
+    /** Optional connector channels (WhatsApp, Viber, SMS). Row appears only when ≥1 channel is selected. */
+    connectors?: { channels: ConnectorChannel[]; monthlyListPrice?: number } & Waivable;
     custom?: BundledProductInput[];
   };
 
@@ -348,6 +358,8 @@ export type LineCategory = 'platform' | 'bundled' | 'addon';
 export interface LineItem {
   key: string;
   name: string;
+  /** Connectors row only: the selected channels, in display order. */
+  channels?: string[];
   category: LineCategory;
   details: string;
   monthlyList: number;
@@ -756,6 +768,21 @@ export function calculatePricing(input: PricingInput): PricingResult {
         ai.complimentary ?? true,
       ),
     );
+  }
+  if (b.connectors) {
+    const chosen = CONNECTOR_CHANNELS.filter((c) => b.connectors!.channels.includes(c));
+    if (chosen.length) {
+      const item = mk(
+        'connectors',
+        'Connectors',
+        'bundled',
+        connectorDetails(chosen.length),
+        b.connectors.monthlyListPrice ?? 0,
+        b.connectors.complimentary ?? false,
+      );
+      item.channels = [...chosen];
+      bundled.push(item);
+    }
   }
   let emailOverage: number | null = null;
   if (b.email) {

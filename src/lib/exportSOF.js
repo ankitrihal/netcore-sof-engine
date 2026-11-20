@@ -35,6 +35,9 @@
  *            {detailsMultiline} (one item per line, e.g. each AI feature) {/bundled}
  *            PX row comes first, only when PX is included: "Product Experience, Nudges and
  *            Contextual Walkthroughs" / "500K MAU with 200 Mio Events / Year"
+ * CONNECTORS {#hasConnectors} {connectorChannels} "WhatsApp, Viber" {connectorDetails} "Connector Maintenance Cost (for two components)"
+ *            {connectorsMonthly} {connectorsTotal} {#connectorsDiscounted}…{/connectorsDiscounted} {#connectorsHasPrice}…{/connectorsHasPrice} {/hasConnectors}
+ *            Indonesia lists it in {#bundled} (after AI Components); its price is in {platformBundledMonthly} {platformBundledTotal}
  * CSM        {csmLabel} {csmDetails} {csmFeeMonthly} {csmFeeTotal} · {#csmDiscounted}…{/csmDiscounted} · {^csmDiscounted}…{/csmDiscounted}
  * ADD-ONS    {#addons}…same fields as bundled…{/addons} · {#hasAddons}…{/hasAddons}
  * TOTALS     {totalMonthly} {listTCV} {totalContractValue}
@@ -180,7 +183,8 @@ export const moneyShort = (n) =>
  * Details split into separate lines for templates that show one item per line (v2):
  * AI Components → one feature per line; Email → volume and overage on separate lines.
  */
-const detailLinesFor = (key, details) => {
+const detailLinesFor = (key, details, channels) => {
+  if (key === 'connectors') return [channels?.join(', ') ?? '', details].filter(Boolean); // "WhatsApp, Viber" / maintenance text
   if (!details) return [];
   if (key === 'aiComponents') return details.split(/,\s*/).filter(Boolean);
   if (key === 'email') return details.split(/\.\s+/).filter(Boolean);
@@ -191,8 +195,8 @@ const lineData = (li) => ({
   key: li.key,
   name: li.name,
   details: li.details,
-  detailLines: detailLinesFor(li.key, li.details),
-  detailsMultiline: detailLinesFor(li.key, li.details).join('\n'), // one item per line in a single cell
+  detailLines: detailLinesFor(li.key, li.details, li.channels),
+  detailsMultiline: detailLinesFor(li.key, li.details, li.channels).join('\n'), // one item per line in a single cell
   monthly: money(li.monthlyList),
   total: money(li.paidTermList),
   discounted: li.fullyDiscounted,
@@ -251,8 +255,14 @@ export function buildSofTemplateData(data) {
   const addons = pricing.addons.filter((a) => a.key !== 'csm').map(lineData);
 
   // Values for layouts without a Bundled Products section (Philippines): everything is in the Platform row
-  const bundledNetMonthly = pricing.bundledProducts.reduce((sum, b) => sum + b.monthlyNet, 0);
-  const bundledNetTotal = pricing.bundledProducts.reduce((sum, b) => sum + b.paidTermNet, 0);
+  // Connectors get their own priced row there, so they're left out of the Platform row.
+  const connectorsItem = pricing.bundledProducts.find((b) => b.key === 'connectors');
+  const inPlatformRow = pricing.bundledProducts.filter((b) => b.key !== 'connectors');
+  const bundledNetMonthly = inPlatformRow.reduce((sum, b) => sum + b.monthlyNet, 0);
+  const bundledNetTotal = inPlatformRow.reduce((sum, b) => sum + b.paidTermNet, 0);
+  // Indonesia: one merged price cell spans Platform … Bundled Products, so it carries all of them.
+  const allBundledNetMonthly = pricing.bundledProducts.reduce((sum, b) => sum + b.monthlyNet, 0);
+  const allBundledNetTotal = pricing.bundledProducts.reduce((sum, b) => sum + b.paidTermNet, 0);
   const emailItem = pricing.bundledProducts.find((b) => b.key === 'email');
   const emailCount = emailItem ? Number((emailItem.details.match(/^([\d,]+) emails/) || [])[1]?.replace(/,/g, '')) || 0 : 0;
   const compact = (n) => (n >= 1e6 ? `${+(n / 1e6).toFixed(2)} Mio` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}K` : String(n));
@@ -327,6 +337,8 @@ export function buildSofTemplateData(data) {
     isEnterprise: pricing.bucket.market === 'Enterprise',
     platformAllInMonthly: money(platformFee.monthly + bundledNetMonthly), // platform + bundled products
     platformAllInTotal: money(platformFee.paidTermTotal + bundledNetTotal),
+    platformBundledMonthly: money(platformFee.monthly + allBundledNetMonthly), // platform + every bundled product
+    platformBundledTotal: money(platformFee.paidTermTotal + allBundledNetTotal),
     platformFeeMonthly: money(platformFee.monthly),
     platformFeeTotal: money(platformFee.paidTermTotal),
     mauOverageRate: String(overages.mauRatePerUser),
@@ -355,6 +367,15 @@ export function buildSofTemplateData(data) {
     emailsLabel: emailCount ? compact(emailCount) : '',
     emailOverageRate: overages.emailPerEmail != null ? String(overages.emailPerEmail) : '',
     ceMonthly: money(platformFee.ceMonthly),
+
+    // Connectors (own row, only when at least one channel is selected)
+    hasConnectors: !!connectorsItem,
+    connectorChannels: connectorsItem ? connectorsItem.channels.join(', ') : '', // "WhatsApp, Viber"
+    connectorDetails: connectorsItem ? connectorsItem.details : '', // "Connector Maintenance Cost (for two components)"
+    connectorsMonthly: connectorsItem ? money(connectorsItem.monthlyList) : '',
+    connectorsTotal: connectorsItem ? money(connectorsItem.paidTermList) : '',
+    connectorsDiscounted: !!connectorsItem?.fullyDiscounted,
+    connectorsHasPrice: !!connectorsItem && connectorsItem.monthlyList > 0,
 
     // Lists. The PX row comes first and only when PX is included.
     bundled: [...pxRow, ...pricing.bundledProducts.map(lineData)],

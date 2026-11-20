@@ -25,6 +25,7 @@ import {
   type LineItem,
   type PxVersion,
   DEFAULT_PX_VERSION,
+  type ConnectorChannel,
 } from '../lib/pricingCalculator';
 import { COUNTRY_VAT, countryFromVat, type Country } from '../lib/access';
 
@@ -222,12 +223,27 @@ export interface FormState extends Omit<ClientDetails, BillingKey> {
   csmFeeFullyDiscounted: boolean;
   aiMonthly: string;
   aiFullyDiscounted: boolean;
+  /** Bundled connectors: channels ticked, monthly price and Fully Discounted. */
+  connWhatsApp: boolean;
+  connViber: boolean;
+  connSms: boolean;
+  connMonthly: string;
+  connFullyDiscounted: boolean;
   emailsPerMonth: string;
   emailRate: string;
   vatRate: string;
   includePx: boolean;
   pxVersion: PxVersion;
 }
+
+/** Connector channels ticked on the form, in display order (WhatsApp, Viber, SMS). */
+const CONNECTOR_FIELDS = [
+  ['connWhatsApp', 'WhatsApp'],
+  ['connViber', 'Viber'],
+  ['connSms', 'SMS'],
+] as const satisfies readonly (readonly [keyof FormState, ConnectorChannel])[];
+const selectedConnectors = (f: FormState): ConnectorChannel[] =>
+  CONNECTOR_FIELDS.filter(([k]) => f[k] === true).map(([, c]) => c);
 
 /** The value a billing field shows and exports: its own if typed, otherwise the Primary value. */
 const billingValue = (f: FormState, k: BillingKey) => f[k] ?? f[BILLING_SOURCE[k]];
@@ -255,6 +271,11 @@ export const INITIAL: FormState = {
   csmFeeFullyDiscounted: false,
   aiMonthly: '0',
   aiFullyDiscounted: false,
+  connWhatsApp: false,
+  connViber: false,
+  connSms: false,
+  connMonthly: '',
+  connFullyDiscounted: false,
   emailsPerMonth: '',
   emailRate: DEFAULT_EMAIL_RATE,
   vatRate: '11',
@@ -400,6 +421,11 @@ function runCalc(f: FormState): Calc {
       px: f.includePx ? { version: DEFAULT_PX_VERSION } : undefined, // unchecked → no PX; checked → Enterprise automatically
       bundled: {
         aiComponents: { monthlyListPrice: num(f.aiMonthly) ?? 0, complimentary: f.aiFullyDiscounted },
+        connectors: {
+          channels: selectedConnectors(f),
+          monthlyListPrice: num(f.connMonthly) ?? 0,
+          complimentary: f.connFullyDiscounted,
+        },
         // Per-email rate overrides the standard tier: monthly price = emails × rate.
         // Overage per extra email = that rate + 15% (applied in calculatePricing).
         email: emails
@@ -898,11 +924,23 @@ const TH = 'border border-slate-200 bg-slate-50 px-3 py-2 text-left align-top fo
 const TD = 'border border-slate-200 px-3 py-2 align-top text-slate-800';
 const NUM = 'whitespace-nowrap text-right tabular-nums';
 
+/** Details cell: connectors list their channels above the maintenance text. */
+function LineDetails({ li }: { li: LineItem }) {
+  if (!li.channels?.length) return <>{li.details}</>;
+  return (
+    <>
+      <span className="sof-connector-channels font-medium text-slate-900">{li.channels.join(', ')}</span>
+      <br />
+      {li.details}
+    </>
+  );
+}
+
 function LineRow({ li, months }: { li: LineItem; months: number }) {
   return (
-    <tr>
+    <tr className={li.key === 'connectors' ? 'sof-connectors' : undefined}>
       <td className={cx(TD, 'font-medium text-slate-900')}>{li.name}</td>
-      <td className={TD}>{li.details}</td>
+      <td className={TD}><LineDetails li={li} /></td>
       <td className={cx(TD, NUM)}>
         <Price value={li.monthlyList} discounted={li.fullyDiscounted} />
       </td>
@@ -1037,9 +1075,9 @@ function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: 
             b.monthlyList > 0 ? (
               <LineRow key={b.key} li={b} months={paid} />
             ) : (
-              <tr key={b.key}>
+              <tr key={b.key} className={b.key === 'connectors' ? 'sof-connectors' : undefined}>
                 <td className={cx(TD, 'font-medium text-slate-900')}>{b.name}</td>
-                <td className={TD}>{b.details}</td>
+                <td className={TD}><LineDetails li={b} /></td>
                 <td className={TD} />
                 <td className={TD} />
               </tr>
@@ -1433,13 +1471,40 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
             <Field label="AI Components ($ / month)" value={f.aiMonthly} onChange={set('aiMonthly')}>
               <DiscountToggle checked={f.aiFullyDiscounted} onChange={set('aiFullyDiscounted')} />
             </Field>
+            <div className="sof-connectors-field">
+              <span className={LABEL}>Connectors (optional)</span>
+              <div className="flex flex-wrap gap-2">
+                {CONNECTOR_FIELDS.map(([k, label]) => (
+                  <label
+                    key={k}
+                    data-connector={label}
+                    className={cx(
+                      'sof-connector flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition',
+                      f[k] ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 accent-blue-600"
+                      checked={f[k] === true}
+                      onChange={(e) => setF((s) => ({ ...s, [k]: e.target.checked }))}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <Field label="Connectors ($ / month)" value={f.connMonthly} onChange={set('connMonthly')} placeholder="0"
+              hint={selectedConnectors(f).length ? undefined : 'Tick at least one connector to add it to the SOF'}>
+              <DiscountToggle checked={f.connFullyDiscounted} onChange={set('connFullyDiscounted')} />
+            </Field>
             <Field label="Emails per month" value={f.emailsPerMonth} onChange={set('emailsPerMonth')} placeholder="Blank = none" />
             <Field label="Pricing per email ($)" value={f.emailRate} onChange={set('emailRate')} placeholder={DEFAULT_EMAIL_RATE}
               hint="Monthly email price = emails × this rate; overage = this rate + 15%" />
           </Card>
 
-          <Card title="Region">
-            <div role="radiogroup" aria-label="Region" className="sof-region grid grid-cols-2 gap-2">
+          <Card title="Country / VAT">
+            <div role="radiogroup" aria-label="Country / VAT" className="sof-region grid grid-cols-2 gap-2">
               {REGION_OPTIONS.map((r) => {
                 const active = countryFromVat(f.vatRate) === r.country;
                 return (
