@@ -63,6 +63,9 @@ export const DEFAULT_AI_COMPONENTS_MONTHLY = 1000;
 
 export type Market = 'Growth' | 'Enterprise';
 
+/** Hard maximum MAU / MTU the price sheet covers (10 Mio). Above this the calculator refuses to price. */
+export const MAX_MAU = 10_000_000;
+
 interface CeBucketRow {
   market: Market;
   upperMau: number; // bucket is (previous upper, upperMau]
@@ -91,6 +94,12 @@ const CE_PRICE_SHEET: CeBucketRow[] = ([
   ['Growth', 4000000, '3.5mn to 4mn', 750, 575000, 440000, 0.14],
   ['Growth', 4500000, '4mn to 4.5mn', 750, 625000, 480000, 0.14],
   ['Growth', 5000000, '4.5mn to 5mn', 1000, 675000, 520000, 0.14],
+  // 6M–10M (projected): +250 Mio yearly events and +$1,000/month (INR 85,000) per extra million
+  ['Growth', 6000000, '5mn to 6mn', 1250, 760000, 605000, 0.14],
+  ['Growth', 7000000, '6mn to 7mn', 1500, 845000, 690000, 0.14],
+  ['Growth', 8000000, '7mn to 8mn', 1750, 930000, 775000, 0.14],
+  ['Growth', 9000000, '8mn to 9mn', 2000, 1015000, 860000, 0.14],
+  ['Growth', 10000000, '9mn to 10mn', 2250, 1100000, 945000, 0.14],
   ['Enterprise', 200000, '0 to 200k', 50, 90000, 90000, 0.45],
   ['Enterprise', 300000, '200k to 300k', 50, 112500, 105000, 0.38],
   ['Enterprise', 400000, '300k to 400k', 75, 125000, 125000, 0.31],
@@ -107,6 +116,12 @@ const CE_PRICE_SHEET: CeBucketRow[] = ([
   ['Enterprise', 4000000, '3.5mn to 4mn', 750, 705000, 510000, 0.18],
   ['Enterprise', 4500000, '4mn to 4.5mn', 750, 750000, 550000, 0.17],
   ['Enterprise', 5000000, '4.5mn to 5mn', 1000, 790000, 590000, 0.16],
+  // 6M–10M (projected): $10,294.12 … $14,294.12 list, 1,250 … 2,250 Mio yearly events
+  ['Enterprise', 6000000, '5mn to 6mn', 1250, 875000, 675000, 0.16],
+  ['Enterprise', 7000000, '6mn to 7mn', 1500, 960000, 760000, 0.16],
+  ['Enterprise', 8000000, '7mn to 8mn', 1750, 1045000, 845000, 0.16],
+  ['Enterprise', 9000000, '8mn to 9mn', 2000, 1130000, 930000, 0.16],
+  ['Enterprise', 10000000, '9mn to 10mn', 2250, 1215000, 1015000, 0.16],
 ] as const).map(([market, upperMau, label, yearlyEventsMn, listInr, floorInr, mtuOverageRef]) => ({
   market, upperMau, label, yearlyEventsMn, listInr, floorInr, mtuOverageRef,
 }));
@@ -602,6 +617,7 @@ export function resolveTerm(input: PricingInput, warnings: string[] = []): Resol
 // ============================================================================
 
 export function findBucket(mau: number, market: Market) {
+  if (mau > MAX_MAU) return null;
   const rows = CE_PRICE_SHEET.filter((r) => r.market === market);
   let lower = 0;
   for (const r of rows) {
@@ -649,7 +665,7 @@ export function calculatePricing(input: PricingInput): PricingResult {
   const hit = findBucket(mau, market);
   if (!hit) {
     throw new Error(
-      `MAU ${fmtInt(mau)} is outside the ${market} price sheet (max 5,000,000). Custom pricing required.`,
+      `MAU ${fmtInt(mau)} is above the maximum of ${fmtInt(MAX_MAU)} (10 Mio). Enter ${fmtInt(MAX_MAU)} or less.`,
     );
   }
   const { row, lowerMauExclusive } = hit;

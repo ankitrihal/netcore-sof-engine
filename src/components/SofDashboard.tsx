@@ -14,6 +14,7 @@ import { pngFromDataUrl, type ExportFormat } from '../lib/exportSOF';
 import {
   calculatePricing,
   findPxRate,
+  MAX_MAU,
   pxDetails,
   pxOverageText,
   PX_PRODUCT_NAME,
@@ -37,6 +38,9 @@ const usd = (n: number) =>
 const rate = (n: number) => 'USD ' + (+n.toPrecision(4)).toString();
 
 /** Blank text → null so the calculator can reject missing manual fees. */
+/** Shown when MAU is above the 10 Mio cap. */
+const MAX_MAU_MSG = `Maximum is ${MAX_MAU.toLocaleString('en-US')} MAU (10 Mio)`;
+
 const num = (s: string): number | null => (s.trim() === '' || isNaN(+s) ? null : +s);
 
 /** Price cell: struck through when fully discounted. */
@@ -183,6 +187,7 @@ function missingPricingFields(f: FormState): string[] {
   const out: string[] = [];
   const mau = num(f.mau);
   if (!mau || mau <= 0) out.push('MAU');
+  else if (mau > MAX_MAU) out.push(`MAU (maximum ${MAX_MAU.toLocaleString('en-US')})`);
   const total = num(f.totalContractDurationMonths);
   if (!total || total < MIN_TERM_MONTHS) out.push(`Total Duration (months), minimum ${MIN_TERM_MONTHS}`);
   const onboarding = num(f.onboardingFee);
@@ -371,7 +376,7 @@ function platformInfo(f: FormState): PlatformInfo {
     });
     return { ok: true, monthly: r.platformFee.ceMonthly, eventsMn: r.eventContainer.totalYearlyMn, band: r.bucket.label };
   } catch {
-    return { ok: false, message: 'Custom pricing (above 5 Mio MAU)' };
+    return { ok: false, message: mau > MAX_MAU ? MAX_MAU_MSG : 'Custom pricing required' };
   }
 }
 
@@ -396,6 +401,7 @@ function runCalc(f: FormState): Calc {
   if (onboardingFee === null || onboardingFee < 0) errors.push('Enter the Onboarding Fee ($).');
   if (csmFee === null || csmFee < 0) errors.push('Enter the CSM Fee ($).');
   if (!mau || mau <= 0) errors.push('Enter MAU.');
+  else if (mau > MAX_MAU) errors.push(MAX_MAU_MSG + '.');
   if (!total || total <= 0) errors.push('Enter the total contract duration (months).');
   else if (total < MIN_TERM_MONTHS) errors.push(`Total duration must be at least ${MIN_TERM_MONTHS} months.`);
   if (errors.length) return { ok: false, errors };
@@ -533,6 +539,8 @@ function Field(props: {
   isMissing?: boolean;
   /** Minimum for number inputs (default 0). */
   min?: number;
+  /** Maximum for number inputs. */
+  max?: number;
   onBlur?: () => void;
   /** Validation message; shown after the user leaves the field, or at once when showError is set. */
   error?: string | null;
@@ -566,6 +574,7 @@ function Field(props: {
           <input
             type={props.type ?? 'number'}
             min={props.type === 'number' || props.type === undefined ? props.min ?? 0 : undefined}
+            max={props.type === 'number' || props.type === undefined ? props.max : undefined}
             step={props.type === 'number' || props.type === undefined ? 'any' : undefined}
             value={props.value}
             placeholder={props.placeholder}
@@ -1055,7 +1064,7 @@ function SofPreview({ r, client, billingStartTbd }: { r: PricingResult; client: 
           <tr>
             <td className={cx(TD, 'font-medium text-slate-900')}>Event Container Inclusion and Overages</td>
             <td className={TD}>
-              {eventContainer.totalYearlyMn} Mio Events (Included) / year. Overages: {usd(overages.eventPricePerBucket)} per
+              {eventContainer.totalYearlyMn.toLocaleString('en-US')} Mio Events (Included) / year. Overages: {usd(overages.eventPricePerBucket)} per
               additional {overages.eventBucketMn} Mio events
             </td>
             <td className={TD} />
@@ -1209,6 +1218,14 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
     }
   };
   const set = <K extends keyof FormState>(k: K) => (v: FormState[K]) => setF((s) => ({ ...s, [k]: v }));
+  /** MAU above the 10 Mio cap is clamped to 10,000,000 and the max-limit message shows. */
+  const [mauCapped, setMauCapped] = useState(false);
+  const setMau = (v: string) => {
+    const n = num(v);
+    const over = n !== null && n > MAX_MAU;
+    setMauCapped(over);
+    set('mau')(over ? String(MAX_MAU) : v);
+  };
   const calc = useMemo(() => runCalc(f), [f]);
   const platform = useMemo(() => platformInfo(f), [f.mau, f.market]);
   const pxPrice = useMemo(() => pxInfo(f), [f.mau]);
@@ -1327,7 +1344,9 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
 
           <Card title="CE (Customer Engagement)">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="MAU" value={f.mau} onChange={set('mau')} required />
+              <Field label="MAU" value={f.mau} onChange={setMau} required max={MAX_MAU}
+                error={mauCapped || (mauNum ?? 0) > MAX_MAU ? MAX_MAU_MSG : null} showError={mauCapped || (mauNum ?? 0) > MAX_MAU}
+                hint={mauCapped || (mauNum ?? 0) > MAX_MAU ? undefined : 'Up to 10 Mio (10,000,000)'} />
               <Select label="Plan" value={f.market} options={['Enterprise', 'Growth'] as Market[]} onChange={set('market')} />
             </div>
             <ReadOnlyField

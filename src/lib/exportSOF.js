@@ -342,7 +342,7 @@ export function buildSofTemplateData(data) {
     platformFeeMonthly: money(platformFee.monthly),
     platformFeeTotal: money(platformFee.paidTermTotal),
     mauOverageRate: String(overages.mauRatePerUser),
-    eventContainerMn: eventContainer.totalYearlyMn,
+    eventContainerMn: eventContainer.totalYearlyMn.toLocaleString('en-US'), // "2,250"
     eventOveragePerBucket: money(overages.eventPricePerBucket),
     eventOverageBucketMn: overages.eventBucketMn,
 
