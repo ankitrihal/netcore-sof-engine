@@ -25,7 +25,7 @@ import {
   type PxVersion,
   DEFAULT_PX_VERSION,
 } from '../lib/pricingCalculator';
-import { COUNTRY_NAME, COUNTRY_VAT, countryFromVat, type Country } from '../lib/access';
+import { COUNTRY_VAT, countryFromVat, type Country } from '../lib/access';
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -86,8 +86,8 @@ const isBarePhonePrefix = (v: string) => /^\+?\d{0,4}\s*$/.test(v.trim());
  *  - the phone prefix follows the country (+62 Indonesia, +63 Philippines), but only while the
  *    phone field holds just a country code, so a number the user typed is never overwritten
  */
-function applyCountryRules(form: FormState, lock: Country | null | undefined): FormState {
-  const country = lock ?? countryFromVat(form.vatRate);
+function applyCountryRules(form: FormState): FormState {
+  const country = countryFromVat(form.vatRate);
   let next = form;
   if (form.vatRate !== COUNTRY_VAT[country]) next = { ...next, vatRate: COUNTRY_VAT[country] };
   const prefix = PHONE_PREFIXES[country];
@@ -194,12 +194,6 @@ function missingPricingFields(f: FormState): string[] {
 
 /** Contracts run for at least 12 months. */
 const MIN_TERM_MONTHS = 12;
-
-/** VAT options: value is the percentage passed to the calculator and export. */
-const VAT_OPTIONS = [
-  { value: '11', label: 'Indonesia (11%)' },
-  { value: '12', label: 'Philippines (12%)' },
-];
 
 /** Standard per-email rate shown by default (NETCORE PRICING sheet). */
 const DEFAULT_EMAIL_RATE = '0.0011';
@@ -750,6 +744,11 @@ function ClientLogoField({ value, clientName, onChange }: { value: string; clien
   );
 }
 
+const REGION_OPTIONS: { country: Country; label: string; detail: string }[] = [
+  { country: 'ID', label: 'Indonesia', detail: '11% VAT · PT Tera Achiever' },
+  { country: 'PH', label: 'Philippines', detail: '12% VAT · Netcore Cloud Pte Ltd' },
+];
+
 const EXPORT_OPTIONS: { format: ExportFormat; label: string; hint: string }[] = [
   { format: 'docx', label: 'Export as Word (DOCX)', hint: 'Editable Word file' },
   { format: 'pdf', label: 'Export as PDF', hint: 'Ready to send or sign' },
@@ -1130,12 +1129,10 @@ export interface SofDashboardProps {
   onNew?: () => void;
   /** Extra content on the right of the top bar (user menu, SOF History button). */
   headerRight?: React.ReactNode;
-  /** Lock the country/VAT to this country (country-team Account Executives). null/undefined = can switch (admins). */
-  countryLock?: Country | null;
 }
 
-export default function SofDashboard({ onExport, onSave, loadRequest, editing, onNew, headerRight, countryLock }: SofDashboardProps = {}) {
-  const [f, setF] = useState<FormState>(() => applyCountryRules(INITIAL, countryLock));
+export default function SofDashboard({ onExport, onSave, loadRequest, editing, onNew, headerRight }: SofDashboardProps = {}) {
+  const [f, setF] = useState<FormState>(() => applyCountryRules(INITIAL));
   const [saving, setSaving] = useState(false);
   /** Set after a blocked Save/Export so every invalid field shows its message. */
   const [showErrors, setShowErrors] = useState(false);
@@ -1143,15 +1140,13 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
   // Load a saved SOF (or a blank form) when the parent asks
   useEffect(() => {
     if (loadRequest) {
-      setF(applyCountryRules(normalizeFormState(loadRequest.data), countryLock));
+      setF(applyCountryRules(normalizeFormState(loadRequest.data)));
       setShowErrors(false);
     }
   }, [loadRequest?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Keep a country-team user's form on their country and phone prefix (also covers a lock arriving after mount)
-  useEffect(() => {
-    setF((s) => applyCountryRules(s, countryLock));
-  }, [countryLock]);
+  /** Region selector: VAT, phone prefix, SOF template and the Indonesia-only cover/logo follow it. */
+  const setRegion = (c: Country) => setF((s) => applyCountryRules({ ...s, vatRate: COUNTRY_VAT[c] }));
 
   /** Save SOF / Update SOF. Only Client Name is required to save; drafts can be incomplete. */
   const handleSave = async () => {
@@ -1179,7 +1174,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
   const platform = useMemo(() => platformInfo(f), [f.mau, f.market]);
   const pxPrice = useMemo(() => pxInfo(f), [f.mau]);
   const mauNum = num(f.mau);
-  const phonePrefix = PHONE_PREFIXES[countryLock ?? countryFromVat(f.vatRate)];
+  const phonePrefix = PHONE_PREFIXES[countryFromVat(f.vatRate)];
 
   // Total duration can't go below 12. A single digit is allowed while typing (the "2" of "24")
   // and snaps to 12 when the field loses focus; finished values under 12 (10, 11, arrow-down) snap at once.
@@ -1238,7 +1233,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
       alert(`Cannot export SOF. ${calc.errors.join(' ')}`);
       return;
     }
-    const exportCountry = countryLock ?? countryFromVat(f.vatRate);
+    const exportCountry = countryFromVat(f.vatRate);
     onExport({
       client,
       pricing: calc.r,
@@ -1268,7 +1263,7 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
           <Card title="Client Details">
             <Field label="Client Name" type="text" required value={f.clientName} onChange={set('clientName')}
               placeholder="e.g. PT Lotte Shopping Indonesia" autoComplete="organization" />
-            {(countryLock ?? countryFromVat(f.vatRate)) === 'ID' && (
+            {(countryFromVat(f.vatRate)) === 'ID' && (
               <ClientLogoField value={f.clientLogo} clientName={f.clientName} onChange={set('clientLogo')} />
             )}
             <Field label="Billing Address" multiline required value={f.billingAddress} onChange={set('billingAddress')}
@@ -1440,18 +1435,36 @@ export default function SofDashboard({ onExport, onSave, loadRequest, editing, o
             <Field label="Emails per month" value={f.emailsPerMonth} onChange={set('emailsPerMonth')} placeholder="Blank = none" />
             <Field label="Pricing per email ($)" value={f.emailRate} onChange={set('emailRate')} placeholder={DEFAULT_EMAIL_RATE}
               hint="Monthly email price = emails × this rate; overage = this rate + 15%" />
-            <Select
-              label="Country / VAT"
-              value={f.vatRate}
-              options={VAT_OPTIONS}
-              onChange={(v) => setF((s) => applyCountryRules({ ...s, vatRate: v }, countryLock))}
-              locked={!!countryLock}
-              hint={
-                countryLock
-                  ? `Locked to ${COUNTRY_NAME[countryLock]} for your account`
-                  : `Uses the ${COUNTRY_NAME[countryFromVat(f.vatRate)]} SOF template`
-              }
-            />
+          </Card>
+
+          <Card title="Region">
+            <div role="radiogroup" aria-label="Region" className="sof-region grid grid-cols-2 gap-2">
+              {REGION_OPTIONS.map((r) => {
+                const active = countryFromVat(f.vatRate) === r.country;
+                return (
+                  <button
+                    key={r.country}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    data-country={r.country}
+                    onClick={() => setRegion(r.country)}
+                    className={cx(
+                      'sof-region-option flex flex-col items-start rounded-md border px-3 py-2 text-left transition focus:outline-none focus:ring-2 focus:ring-blue-400',
+                      active ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-300 bg-white hover:border-slate-400 hover:bg-slate-50',
+                    )}
+                  >
+                    <span className={cx('text-xs font-semibold', active ? 'text-blue-700' : 'text-slate-800')}>{r.label}</span>
+                    <span className="text-[11px] text-slate-500">{r.detail}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className={cx('sof-hint', HINT)}>
+              {countryFromVat(f.vatRate) === 'ID'
+                ? 'Indonesia SOF: includes the cover page, About Netcore page and client logo'
+                : 'Philippines SOF template'}
+            </span>
           </Card>
         </aside>
 

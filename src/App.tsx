@@ -134,12 +134,7 @@ function Workspace({ user }: { user: AppUser }) {
         )}
         <div className="hidden text-right sm:block">
           <p className="sof-user-email text-[11px] font-medium text-white">{user.email}</p>
-          {user.isAdmin && <p className="sof-admin-badge text-[10px] font-semibold uppercase tracking-wide text-amber-300">Admin · ID + PH</p>}
-          {user.countryLock && (
-            <p className="sof-team-badge text-[10px] font-semibold uppercase tracking-wide text-sky-300">
-              {user.countryLock === 'PH' ? 'Philippines' : 'Indonesia'} team
-            </p>
-          )}
+          {user.isAdmin && <p className="sof-admin-badge text-[10px] font-semibold uppercase tracking-wide text-amber-300">Admin</p>}
         </div>
         <button
           type="button"
@@ -197,7 +192,6 @@ function Workspace({ user }: { user: AppUser }) {
         }
         onNew={newSof}
         headerRight={headerRight}
-        countryLock={user.countryLock}
       />
       <SofHistory
         user={user}

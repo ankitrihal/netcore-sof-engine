@@ -11,15 +11,13 @@
 import React, { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from '../lib/supabaseClient';
-import { getAccessLevel, getUserCountryLock, type Country, UNAUTHORIZED_MESSAGE, UNVERIFIED_MESSAGE } from '../lib/access';
+import { getAccessLevel, UNAUTHORIZED_MESSAGE, UNVERIFIED_MESSAGE } from '../lib/access';
 
 export interface AppUser {
   email: string;
   name: string;
   avatarUrl?: string;
   isAdmin: boolean;
-  /** Country this user's SOFs are locked to (ID/PH), or null if they can switch (admins). */
-  countryLock: Country | null;
   signOut: () => Promise<void>;
 }
 
@@ -143,7 +141,6 @@ export default function AuthGate({ children }: { children: (user: AppUser) => Re
     name,
     avatarUrl: (meta.avatar_url as string) || (meta.picture as string) || undefined,
     isAdmin: level === 'admin',
-    countryLock: getUserCountryLock(email),
     signOut,
   };
   return <>{children(user)}</>;

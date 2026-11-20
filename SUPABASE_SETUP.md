@@ -18,9 +18,7 @@ This creates the `saved_sofs` table and these rules, enforced by the database it
 | Who | What they get |
 | --- | --- |
 | Admins: `ankitrihal@gmail.com`, `ankit.rihal@netcore.ai` | See, edit and delete **every** SOF (master history); switch freely between Indonesia and Philippines |
-| **Any verified `@netcore.ai` account** | Gets in automatically (no list to maintain); their **own** SOFs only; can choose Indonesia or Philippines |
-| Philippines team: `don.gonzales`, `yuvraj.bhattee` (`@netcore.ai`) | As above, but locked to Philippines (12% VAT, `SOF_Template_PH.docx`, Netcore Cloud Pte Ltd) |
-| Indonesia team: `mohd.pakzad`, `prathamesh.borkar` (`@netcore.ai`) | As above, but locked to Indonesia (11% VAT, `SOF_Template_ID.docx`, PT Tera Achiever) |
+| **Any verified `@netcore.ai` account** | Gets in automatically (no list to maintain); their **own** SOFs only; picks Indonesia (11% VAT, `SOF_Template_ID.docx`) or Philippines (12% VAT, `SOF_Template_PH.docx`) with the Region selector at the bottom of the form |
 | A `@netcore.ai` address whose email isn't verified | Nothing ("…your Netcore email address is not verified…") |
 | Anyone else, or signed-out visitors | Nothing ("Unauthorized: Only Netcore accounts are allowed.") |
 
@@ -76,11 +74,11 @@ It lets in admins and any `@netcore.ai` account and rejects everything else. Wit
 - Sign in as `ankit.rihal@netcore.ai` or `ankitrihal@gmail.com` → an **Admin** badge, and SOF History lists everyone's SOFs with a **Created by** column.
 - Sign in with any other Google account → "Unauthorized: Only Netcore accounts are allowed."
 
-## New team members, country locks and admins
+## New team members and admins
 
 - **New Netcore colleague:** nothing to do. They sign in with their `@netcore.ai` Google account and get in.
-- **Lock someone to a country:** add their email to `COUNTRY_TEAMS` in `src/lib/access.ts` (and to `NETCORE_SIGNATORIES`
-  for their name and title on the SOF signature block), then redeploy.
+- **Their name and title on the SOF signature block:** add them to `NETCORE_SIGNATORIES` in `src/lib/access.ts` and
+  redeploy. Unlisted people get a name made from their email (e.g. `rahul.sharma` → Rahul Sharma) and a blank title.
 - **Change admins:** edit `ADMIN_EMAILS` in `src/lib/access.ts` **and** `is_admin_email()` + `is_admin()` in
   `supabase/schema.sql`, re-run the file in the Supabase SQL Editor, and redeploy.
 

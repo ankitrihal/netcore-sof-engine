@@ -4,9 +4,9 @@
  *   Admins (ankitrihal@gmail.com, ankit.rihal@netcore.ai)
  *       → every SOF (master history list), deleting SOFs, and free switching between Indonesia and Philippines
  *   Any verified @netcore.ai account → the app automatically, own SOFs only (no allowlist to maintain)
- *       Philippines team (don.gonzales, yuvraj.bhattee) → locked to Philippines: 12% VAT, SOF_Template_PH.docx
- *       Indonesia team (mohd.pakzad, prathamesh.borkar) → locked to Indonesia: 11% VAT, SOF_Template_ID.docx
- *       Everyone else at Netcore → can choose either country
+ *   Everyone picks Indonesia or Philippines with the Region selector at the bottom of the form
+ *       Indonesia: 11% VAT, SOF_Template_ID.docx (cover, About Netcore page, client logo)
+ *       Philippines: 12% VAT, SOF_Template_PH.docx
  *   Everyone else → signed out with "Unauthorized: Only Netcore accounts are allowed."
  *
  * Keep in sync with supabase/schema.sql (is_netcore_email, is_admin_email, has_app_access).
@@ -61,21 +61,7 @@ export type Country = 'ID' | 'PH';
 export const COUNTRY_VAT: Record<Country, string> = { ID: '11', PH: '12' };
 export const COUNTRY_NAME: Record<Country, string> = { ID: 'Indonesia', PH: 'Philippines' };
 
-/** Country teams: these Account Executives can only create SOFs for their own country. */
-export const COUNTRY_TEAMS: Record<Country, string[]> = {
-  PH: ['don.gonzales@netcore.ai', 'yuvraj.bhattee@netcore.ai'],
-  ID: ['mohd.pakzad@netcore.ai', 'prathamesh.borkar@netcore.ai'],
-};
-
-/** The country this user is locked to, or null if they can choose (admins). */
-export function getUserCountryLock(email: string | null | undefined): Country | null {
-  const e = norm(email);
-  if (ADMIN_EMAILS.includes(e)) return null;
-  for (const c of Object.keys(COUNTRY_TEAMS) as Country[]) if (COUNTRY_TEAMS[c].includes(e)) return c;
-  return null;
-}
-
-/** Country from the VAT dropdown value ('12' → Philippines, otherwise Indonesia). */
+/** Country from the VAT value ('12' → Philippines, otherwise Indonesia). */
 export const countryFromVat = (vat: string | number | null | undefined): Country => (String(vat) === '12' ? 'PH' : 'ID');
 
 /** Company domain: any verified account here gets in automatically. */

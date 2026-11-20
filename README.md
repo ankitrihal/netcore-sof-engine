@@ -25,7 +25,7 @@ Sign in, fill in the client details and fees on the left, then:
 | `src/App.tsx` | Main page: sign-in gate, dashboard, SOF History, save / open / export |
 | `src/components/AuthGate.tsx` | Google sign-in; only @netcore.ai and ankitrihal@gmail.com get in |
 | `src/components/SofHistory.tsx` | SOF History panel (own SOFs, or all SOFs for admins) |
-| `src/lib/access.ts` | Admins, Account Executives and their country teams (ID/PH lock) |
+| `src/lib/access.ts` | Who may sign in (admins, verified `@netcore.ai`) and SOF signatory names/titles |
 | `src/lib/sofStore.ts` | Save, update, list and open SOFs in Supabase |
 | `src/lib/supabaseClient.ts` | Supabase connection (reads `.env.local`) |
 | `supabase/schema.sql` | Database table, security rules and sign-up hook (run once in Supabase) |
